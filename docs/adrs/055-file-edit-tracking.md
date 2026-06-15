@@ -1,4 +1,4 @@
-# ADR 055 — File-edit tracking per round trip
+# ADR 055 — File-edit tracking and edit cost per round trip
 
 **Status:** proposed.
 **Related:** ADR 030 (tap.jsonl decoded layer — the `DecodedEvent::ToolUse`
@@ -31,6 +31,14 @@ step — *this tool name means an edit; this field is the path; this is the
 edit count* — and the plumbing to carry the result through the existing
 telemetry pipeline to the viewer.
 
+The funding-relevant question goes one step further: not just *how many*
+edits, but *what they cost*. Token usage is already on the same
+round-trip record (ADR 041), so relating edits and lines-changed to
+tokens — "round-trip tokens per edit," "tokens per line of churn,"
+dollars when a price table is configured — is a derived signal over
+facts already captured (§2.7). It is a metric nobody else is showing:
+the unit economics of AI code change.
+
 ### 1.2 What "edits" are on the Anthropic wire
 
 There is **no top-level `edits` field** in an Anthropic request. Edits
@@ -59,7 +67,9 @@ tool's input, not at the request top level.
 | **edit kind** | `modify` (changes existing content) or `create` (`Write`, `text_editor` `create`). |
 | **requested vs applied** | A `tool_use` block is the model *requesting* an edit; the edit executes in the agent, and its success returns as a `tool_result` in the *next* request. noodle observes requests directly; applied/errored status is recoverable later via `tool_use_id` pairing (§4.3). |
 | **edit summary** | The per-round-trip rollup: total edits, distinct files, per-file breakdown. The value this ADR adds end to end. |
-| **tool registry** | The small `tool_name → (path_field, count_strategy, kind)` table that makes recognition data-driven and agent-extensible. |
+| **tool registry** | The small `tool_name → (path_field, count_strategy, churn_strategy, kind)` table that makes recognition data-driven and agent-extensible. |
+| **churn** | Lines written by an edit: `lines_added` (lines in the new string) + `lines_removed` (lines in the old string). *Edit-payload* churn, not a working-tree diff; `create`/`Write` removed counts are unknowable from the request and recorded as 0. |
+| **edit cost** | Derived ratios over facts already on the row — `output_tokens ÷ edits`, `output_tokens ÷ churn`, optionally `× price[model]`. Never stored (§2.7). |
 
 ### 1.4 Invariants
 
@@ -91,12 +101,12 @@ spine ADR 047's `brain.*` used.
 
 ```mermaid
 flowchart LR
-    DEC["DecodedPair.events\n(DecodedEvent::ToolUse{name,input})\nADR 030/041"]
-    EXT["edit extractor\n(tool registry → EditSummary)\nnoodle-embellish-core"]
-    ROW["TelemetryRow\n+ edit_summary\nmapper.rs"]
-    DB[("SQLite\nfile_edits_* columns\nADR 047 ADD COLUMN")]
-    SHIP["shipper\nrow_to_otlp_log\nfile_edits.* / gen_ai.*"]
-    VIEW["viewer\nRowDetail ToolUseStatsPanel\n+ OODA badge"]
+    DEC["DecodedPair.events<br/>DecodedEvent::ToolUse (name, input)<br/>ADR 030/041"]
+    EXT["edit extractor<br/>tool registry to EditSummary<br/>noodle-embellish-core"]
+    ROW["TelemetryRow<br/>+ edit_summary<br/>mapper.rs"]
+    DB[("SQLite<br/>file_edits_ columns<br/>ADR 047 ADD COLUMN")]
+    SHIP["shipper<br/>row_to_otlp_log<br/>file_edits. / gen_ai."]
+    VIEW["viewer<br/>RowDetail ToolUseStatsPanel<br/>+ OODA badge"]
 
     DEC --> EXT --> ROW --> DB
     DB --> SHIP --> OTLP[("OTLP")]
@@ -110,6 +120,8 @@ flowchart LR
 /// tool_use blocks were present.
 pub struct EditSummary {
     pub total_edits: u32,            // Σ edit operations (MultiEdit counts its array)
+    pub lines_added: u32,            // Σ lines written across all edits this round trip (§2.7)
+    pub lines_removed: u32,          // Σ lines replaced/deleted (0 for create/Write)
     pub files: Vec<FileEdits>,       // distinct files, in first-seen order
     pub tool_use_total: u32,         // all tool_use blocks (edit + non-edit) — a free general metric
 }
@@ -117,26 +129,38 @@ pub struct EditSummary {
 pub struct FileEdits {
     pub path: String,
     pub edits: u32,
+    pub lines_added: u32,
+    pub lines_removed: u32,
     pub kind: EditKind,              // modify | create (create wins if mixed)
 }
 ```
 
 `files.len()` is the distinct-file count; `total_edits` is the headline
-metric. Serialized to `postcard`/JSON for storage; the per-file map
-serializes as `{ "path": {"edits": n, "kind": "modify"} }`.
+metric; `lines_added`/`lines_removed` are churn (§2.7). Serialized to
+`postcard`/JSON for storage; the per-file map serializes as
+`{ "path": {"edits": n, "added": a, "removed": r, "kind": "modify"} }`.
+Cost ratios (tokens-per-edit, tokens-per-line, dollars) are **derived
+at the surface, never stored** — see §2.7.
 
 ### 2.3 Tool registry (recognition is data, not code)
 
 ```rust
-struct EditTool { path_field: &'static str, count: CountStrategy, kind: EditKind }
+struct EditTool { path_field: &'static str, count: CountStrategy, churn: ChurnStrategy, kind: EditKind }
 enum CountStrategy { One, ArrayLen(&'static str) /* e.g. "edits" */, TextEditorCommand }
+enum ChurnStrategy {
+    Pair { added: &'static str, removed: &'static str }, // Edit / text_editor str_replace
+    AddedOnly(&'static str),                              // Write (content), text_editor create/insert
+    PairArray(&'static str),                             // MultiEdit edits[] (Σ added/removed)
+    TextEditorCommand,                                   // dispatch on `command`
+}
 ```
 
 A static table maps the §1.2 tool names to `EditTool`. Adding a new
 agent's editing tool (OpenCode, a custom harness) is a one-row change,
 not new control flow — and unknown names hit I3 (zero, no error). The
-registry is the *only* place tool-specific knowledge lives; the codec
-(ADR 041) stays provider-generic.
+registry is the *only* place tool-specific knowledge lives (now both
+*which field is the count* and *which fields hold the churn strings*);
+the codec (ADR 041) stays provider-generic.
 
 ### 2.4 Persistence — new SQLite columns (ADR 047 pattern)
 
@@ -148,7 +172,9 @@ forward on open with no rebuild:
 |---|---|---|
 | `file_edits_count` | INTEGER | `total_edits` |
 | `file_edits_file_count` | INTEGER | distinct files |
-| `file_edits_by_file_json` | TEXT | the per-file map |
+| `file_edits_lines_added` | INTEGER | Σ lines written this round trip (§2.7) |
+| `file_edits_lines_removed` | INTEGER | Σ lines replaced/deleted (0 for create/Write) |
+| `file_edits_by_file_json` | TEXT | the per-file map (each entry: edits, added, removed, kind) |
 | `tool_use_count` | INTEGER | `tool_use_total` (general, useful beyond edits) |
 
 All nullable; a non-Anthropic or non-`/v1/messages` row leaves them
@@ -165,6 +191,8 @@ own facts plus the `gen_ai.*` semantic-convention alias.
 | `file_edits.count` | `file_edits_count` | `> 0` |
 | `file_edits.file_count` | `file_edits_file_count` | `> 0` |
 | `file_edits.by_file` (JSON string) | `file_edits_by_file_json` | non-empty |
+| `file_edits.lines_added` | `file_edits_lines_added` | `> 0` |
+| `file_edits.lines_removed` | `file_edits_lines_removed` | `> 0` |
 | `gen_ai.tool.edit_count` | `file_edits_count` | `> 0` |
 | `gen_ai.tool.invocation_count` | `tool_use_count` | `> 0` |
 
@@ -186,6 +214,73 @@ not metrics, and inventing a metrics path here is out of scope.
   the turn/usage chips) so edits are scannable without expanding —
   `0` renders nothing (no badge noise on read-only turns).
 
+### 2.7 Edit cost — line deltas and token economics
+
+Counting operations answers "how many edits"; the funding-relevant
+question is "what did those edits cost." Two cheap additions turn the
+edit summary into a cost signal — one stored fact, one derived ratio.
+
+**Line deltas (a fact, stored).** Every recognized edit input carries
+the strings being written, so churn is computable without diffing the
+working tree:
+
+| Tool | `lines_added` | `lines_removed` |
+|---|---|---|
+| `Edit` | lines in `new_string` | lines in `old_string` |
+| `MultiEdit` | Σ over `edits[]` | Σ over `edits[]` |
+| `Write` | lines in `content` | 0 (no prior content on the wire — create/overwrite) |
+| `NotebookEdit` | lines in `new_source` | 0 (cell-grained; approximated) |
+| `text_editor` `str_replace` | lines in `new_str` | lines in `old_str` |
+| `text_editor` `insert` / `create` | lines added | 0 |
+
+`FileEdits` gains `lines_added`/`lines_removed`; `EditSummary` carries
+the round-trip totals. **These are *edit-payload churn*, not a git-diff**
+— they measure the lines in the edit strings the model emitted, which is
+what we observe on the wire. For `Write`/`create` the removed count is
+unknowable from the request and is recorded as 0.
+
+**Cost ratios (derived, NOT stored).** Token usage is already on the
+same row (`input_tokens`/`output_tokens`, ADR 041). The cost signals are
+ratios over facts already present:
+
+- `output_tokens ÷ total_edits` — tokens per edit
+- `output_tokens ÷ (lines_added + lines_removed)` — tokens per line of churn
+- `× price[model]` — dollars, when a `model → $/token` table is configured
+
+These are computed at the surface (a shipper convenience attribute, the
+viewer panel), **never written to a column**. Storing a ratio
+denormalizes two facts that already exist and goes stale; storing
+dollars bakes in a price that changes. We store **facts** (edits, lines,
+tokens) and derive **economics**.
+
+**The honest-attribution caveat.** A round trip's `output_tokens` cover
+the *entire* assistant turn — thinking, prose, and every `tool_use`
+block — not just the edits. So "tokens per edit" is the cost of *the
+round trip that produced these edits*, not the marginal cost of an edit
+in isolation. The surface labels it "round-trip tok/edit" with a tooltip
+stating the caveat; claiming a per-edit marginal cost would be a
+fabricated number (I4).
+
+**Storage delta (§2.4):** two columns — `file_edits_lines_added`,
+`file_edits_lines_removed` — plus `added`/`removed` on each
+`by_file_json` entry. No ratio or dollar columns.
+
+**OTLP delta (§2.5):** `file_edits.lines_added`,
+`file_edits.lines_removed` (facts). Ratios are left to dashboards to
+compute from emitted facts; the shipper may emit one clearly-named
+convenience attribute `gen_ai.tool.output_tokens_per_edit`.
+
+**UI delta (§2.6):**
+- RowDetail headline gains churn — **"7 edits · 3 files · +120 / −34"** —
+  with a cost line below: **"≈ 310 round-trip tok/edit · ≈ 21 tok/line"**,
+  and **"≈ $0.004"** when a price map is configured. Per-file rows show
+  their own `+a / −r`.
+- OODA badge gains churn compactly — **"7✎ +120/−34"**.
+- *(deferred rung)* a session/turn rollup — cumulative edits, churn, and
+  cost across a whole session — is the natural next surface and aligns
+  with the fleet viewer (ADR 046). Out of scope for v1's per-round-trip
+  grain.
+
 ---
 
 ## 3. Key flow — a MultiEdit round trip
@@ -199,14 +294,14 @@ sequenceDiagram
     participant R as TelemetryRow / SQLite
     participant V as viewer
 
-    M->>T: response: tool_use(MultiEdit, {file_path:"a.rs", edits:[e1,e2,e3]})
+    M->>T: response tool_use MultiEdit on a.rs with 3 edits
     T->>D: decode response
-    D->>E: DecodedEvent::ToolUse{name:"MultiEdit", input}
-    Note over E: registry: MultiEdit → ArrayLen("edits") → 3 edits, file a.rs, modify
-    E->>R: EditSummary{total_edits:3, files:[{a.rs,3,modify}], tool_use_total:1}
-    R->>R: file_edits_count=3, file_edits_file_count=1, by_file_json={...}
+    D->>E: DecodedEvent ToolUse name=MultiEdit
+    Note over E: registry MultiEdit ArrayLen edits = 3 edits, file a.rs, modify
+    E->>R: EditSummary total_edits=3, files a.rs x3, tool_use_total=1
+    R->>R: file_edits_count=3, file_edits_file_count=1, by_file_json set
     R->>V: row carries edit_summary
-    V->>V: badge "3 edits"; RowDetail panel expands a.rs ×3
+    V->>V: badge 3 edits; RowDetail expands a.rs x3
 ```
 
 ---
@@ -253,6 +348,12 @@ existing per-pair pass.
 - *Unknown future edit tool*: zero edits, `tool_use_total` still
   increments — the row honestly shows "tools ran, none recognized as
   edits," and the fix is a registry row.
+- *Line counting* (§2.7): `count_lines(s)` is `0` for empty/absent, else
+  the newline-split count of the edit string; computed in the same pass.
+  `create`/`Write` removed-count is 0 (no prior content on the wire).
+- *Line counting* (§2.7): `count_lines(s)` is `0` for empty/absent, else
+  the newline-split count of the edit string; computed in the same pass.
+  `create`/`Write` removed-count is 0 (no prior content on the wire).
 
 ### 4.3 Requested vs applied (named later rung, not v1)
 
@@ -270,23 +371,28 @@ the pairing-based applied count is additive and deferred.
 | Risk | Posture |
 |---|---|
 | Tool-name drift across agents/versions | Registry is data; unknown names degrade to zero (I3). A drift shows as "tool_use_total > 0, edits 0," a visible, debuggable signal. |
-| "Edits" misread as "lines changed" | It is **operations**, not lines: `MultiEdit` of 3 hunks = 3, regardless of line span. Documented in the glossary and the viewer tooltip. |
+| "Edits" vs "lines changed" conflation | Two distinct facts: `edits` = operations (`MultiEdit` of 3 hunks = 3); `churn` = lines (§2.7). Stored separately; the viewer labels each. |
+| "Tokens per edit" read as marginal edit cost | It is round-trip `output_tokens ÷ edits` — the cost of the whole turn that produced the edits, not an isolated edit. Labeled "round-trip tok/edit" with a tooltip caveat (§2.7); overclaiming would be a fabricated number. |
+| Line counts mistaken for a git-diff | Edit-payload churn (lines in the model's edit strings), not a working-tree diff; `create`/`Write` removed = 0. Stated in the glossary and §2.7. |
+| Dollar cost drifts as prices change | Dollars are a viewer/shipper multiply against a configured `model → price` table, never a stored column (§2.7). |
 | Requested ≠ applied | I4: v1 is explicitly *requested*; applied is the §4.3 rung. The metric name carries the qualifier. |
 | Path is a client-absolute string | Stored verbatim; no normalization or PII assumptions beyond what the agent already put on the wire. The viewer may basename-shorten for display only. |
-| Column growth on the rollup table | Four nullable columns via the same ADD COLUMN scan ADR 047 validated; no rebuild, forward-compatible on old DBs. |
+| Column growth on the rollup table | Six nullable columns via the same ADD COLUMN scan ADR 047 validated; no rebuild, forward-compatible on old DBs. |
 
 ---
 
 ## 6. Implementation plan
 
 1. **`EditSummary` + tool registry + extractor** in
-   `noodle-embellish-core` (pure, unit-tested against captured
+   `noodle-embellish-core` — operations **and** line deltas (§2.7),
+   pure, unit-tested against captured
    `MultiEdit`/`Edit`/`Write`/`text_editor` tool_use fixtures from
-   `tap.jsonl`). No wiring yet — the function and its tests stand alone.
+   `tap.jsonl`. Cost ratios are surface-derived, not part of the
+   extractor. No wiring yet — the function and its tests stand alone.
 2. **Mapper integration**: call the extractor in
    `crates/noodle-embellish-core/src/mapper.rs`; add `edit_summary` to
    `TelemetryRow`.
-3. **SQLite columns** via `ensure_columns()` (the §2.4 four), idempotent
+3. **SQLite columns** via `ensure_columns()` (the §2.4 six), idempotent
    on existing DBs; write path populates them.
 4. **Shipper**: add the fields to `RollupsRow`
    (`crates/noodle-shipper/src/cursor.rs`) and the §2.5 attribute emits
