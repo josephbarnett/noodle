@@ -661,6 +661,7 @@ mod tests {
             provider_metadata_json: Some(r#"{"provider":"anthropic"}"#.to_owned()),
             brain: None,
             policy: None,
+            context_weight: None,
             correlation_quality: crate::mapper::CorrelationQuality::WireOnly,
         }
     }
