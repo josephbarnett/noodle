@@ -65,6 +65,18 @@ ADRs themselves. Cross-references live in the per-ADR notes below.
 | 045 | Watchtower — in-path policy classification + action gating | □ | Designed; no `PolicyDecision` port, no `policy.*` OTLP attributes, no classifier impls. |
 | 046 | Telemetry viewer — fleet observability over the data plane | □ | Designed; no GenAI/OpenInference semantic alignment in the shipper, no fleet-tier viewer. |
 | 047 | Session brain — ephemeral per-session retrieval | ◐ | Rung 1 shipped end-to-end: `Brain` + `BrainObservation` in `crates/noodle-embellish-core/src/brain.rs` (5 unit tests + replay against real tap.jsonl); `Embellisher` observes per pair; `TelemetryRow.brain` carries it; 9 `brain_*` SQLite columns (idempotent ADD COLUMN migration); shipper emits `brain.*` OTLP attributes. Rung 1.5 (per-chain disambiguation via response `msg_id` propagation) and rungs 2-5 (semantic index, recall API, cross-session persistence, read+inject) deferred. E1 evidence at [`notes/e1-compaction-evidence.md`](../../notes/e1-compaction-evidence.md). |
+| 048a | Design ↔ code gap review and remediation | ◐ | [`048-design-gap-review.md`]. G0 resolved; **G1** (lineage steal by interposed side-call) test missing — fixture `quota-and-title.fixture.json` seeded; **G2** (`pause_turn` closes turn incorrectly) pinned at `crates/noodle-core/src/marking.rs:459`; **G3** (operator directive `text`/`as` parsed but discarded — `DEFAULT_DIRECTIVE` lands instead) unfixed; R5 turn rollup unimplemented. **⚠ Numbering collision with 048b below — needs renumber.** |
+| 048b | Inject / Extract: LLM self-classification | ◐ | [`048-inject-extract-llm-self-classification.md`]. Items 0–5, 8 shipped: `crates/noodle-adapters/src/transform/placement.rs` (all 7 placements), stateless injection gate w/ quota-probe skip, six-tag `crates/noodle-proxy/default-noodle.toml`. Items 6–7 (per-turn rollup, OTLP per-turn grain) not built; G3 directive-text wiring outstanding. |
+| 049 | Sub-agent lineage | ◐ | `crates/noodle-adapters/src/marking/anthropic.rs`; 8 tests in `crates/noodle-adapters/tests/adr_048_sub_agent_state.rs`. Lineage anchor (spawn-prompt fingerprint) shipped end-to-end. **Per-agent-run turn boundary + system-hash identity superseded by ADR 052** (parallel same-type agents collapse); detector rewrite pending 052 validation. |
+| 050 | Session-state service: one port, pluggable backends | □ | [`050-session-state-service.md`]. Status proposed; no port/impl on `main`. Lifts the per-process in-memory marking-store limitation (ADR 028 §3) for multi-replica. Engine decision recorded (§2.5): **Valkey** (BSD-3) over AGPL Redis, **`fred`** Rust client, ElastiCache-for-Valkey or self-hosted Valkey+Sentinel for HA; throughput is not the deciding factor at this op rate. |
+| 051 | Viewer "LEARNED" reveal + debugger IA | □ | [`051-viewer-learned-reveal.md`]. Full info architecture + LearnedStore pseudocode; no viewer panel built. `side_effects.jsonl` already carries `event_id`/`turn_id`/`agent_run_id` for the feed. Gated on ADR 052 marks reshape. |
+| 052 | Turn / run / lineage — per-session `tool_use` frame tree | ◐ | [`052-turn-run-lineage-frame-tree.md`]; replay oracle `crates/noodle-adapters/tests/adr_052_frame_tree.rs` + fixtures `tests/fixtures/adr_052/`; `tools/validate_frame_tree.py`. **Design proven on 3 single-turn captures** (bash-loop, task-subagent, parallel-subagents). §9 unproven: multi-turn re-entry (`extends_root`), per-session partitioning, compactor positive signal. Detector rewrite gated on a `parent-multiturn.mitm` capture; production detector still on old 049 logic. |
+| 053 | Documentation taxonomy | ✓ | `docs/{adrs,architecture,guides,knowledge,features}`. ~85 docs + 36 source/config files migrated. (ADR 050 had been left in `docs/design/`; now relocated — `docs/design/` is empty.) `docs/architecture/*.md` moved but not yet freshened. |
+| 054 | Cross-agent `<system-reminder>` convention | ✓ | `crates/noodle-proxy/default-noodle.toml` (`user_prepend`) + `crates/noodle-adapters/src/transform/placement.rs` + `crates/noodle-adapters/src/enhancer.rs` (idempotent dedup). Convention verified on Claude Code + OpenCode. |
+
+> **Intentional ADR-number gaps:** 003, 005, 008, 009, 010, 012, 013 were never written (numbering is sequence, not contiguous).
+>
+> **Open numbering issues to resolve:** two ADRs share number **048** (gap-review + inject/extract) — one should renumber. *(Resolved: ADR 050 was relocated from `docs/design/` into `docs/adrs/`, restoring ADR 053 taxonomy compliance and fixing the cross-reference link from ADR 048b.)*
 
 ## Coverage summary
 
@@ -76,6 +88,10 @@ ADRs themselves. Cross-references live in the per-ADR notes below.
 - **Watchtower (045)** — designed only.
 - **Fleet viewer (046)** — designed only.
 - **Session brain (047)** — rung 1 shipped end-to-end (in-process observer + OTLP `brain.*` attrs); rungs 1.5–5 deferred.
+- **Turn / lineage rework (048a/048b/049/052)** — the active front. Lineage anchor and placement/injection are shipped, but the turn-boundary model from 049 is **superseded by 052's frame tree**, which is design-proven on single-turn captures only. The detector rewrite is gated on a multi-turn capture; turn rollup and per-turn OTLP grain (048 R5 / items 6–7) are unbuilt.
+- **Session-state service (050)** — designed only; the enabler for multi-replica (lifts the per-process marking store).
+- **Viewer LEARNED reveal (051)** — designed only; gated on 052's marks.
+- **Docs taxonomy (053) + system-reminder convention (054)** — shipped.
 
 The angel-demo build-out (Tier 1+2 from the planning conversation) is
 materially the work to take ADRs **044/045/046/047** from designed-only

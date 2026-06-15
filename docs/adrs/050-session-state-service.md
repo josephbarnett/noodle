@@ -201,18 +201,95 @@ sectional convention per ADR 048 §8):
 
 ```toml
 [session_store]
-backend = "memory"        # "memory" (default) | "redis"
+backend = "memory"        # "memory" (default) | "valkey" ("redis" alias)
 ttl_seconds = 14400       # I4 — refreshed on write
-# Redis-only:
-url = "redis://noodle-redis:6379"
+# Remote-backend only (RESP engine — see §2.5):
+url = "redis://noodle-valkey:6379"
 op_timeout_ms = 50        # I3 — per-operation budget before fail-open-cold
 cas_max_retries = 4       # §4 — then fail-open (write skipped, audited)
 ```
 
 Absent section ⇒ in-memory with the defaults above. Fail-fast
-validation at startup (unreachable Redis at boot is a startup error
-under `backend = "redis"`, not a silent fallback — operators choose
+validation at startup (unreachable backend at boot is a startup error
+under a remote backend, not a silent fallback — operators choose
 the degraded posture explicitly, they don't discover it).
+
+---
+
+## 2.5 Backend engine and client selection
+
+The remote backend targets the **RESP wire protocol**, not a specific
+product. Every candidate below speaks RESP, so the adapter is written
+once and the engine is an operational choice. This decoupling matters
+because the engine landscape moved under the project's feet (Redis
+relicensed in 2024) and will keep moving.
+
+**The workload makes raw throughput irrelevant.** Session state is
+read once at request open and written once at response close — two
+ops per proxy round trip, and a proxy round trip is gated on a
+multi-second model response. Even a busy gateway issues low
+hundreds of state ops/sec, with values in the low-KB range. The
+high-throughput engines win benchmarks at millions of ops/sec on
+many cores; none of that headroom is reachable here. **The decision
+is therefore driven by licensing, HA/operational story, and Rust
+client fit — not by benchmark throughput.** Recorded so a future
+reader doesn't "upgrade" the engine chasing a number that never
+bound us.
+
+### Engine: Valkey (reference), any RESP engine accepted
+
+| Engine | License | Fit for noodle |
+|---|---|---|
+| **Valkey** *(chosen)* | BSD-3-Clause (Linux Foundation; AWS/Google/Oracle) | Drop-in RESP, permissive license, managed on every major cloud, Valkey 8 added multithreaded I/O. No copyleft friction when co-deployed with the proxy. |
+| Redis 8+ | AGPLv3 / RSALv2 / SSPLv1 | Functionally fine, but AGPL is copyleft with a network-use clause — undesirable for a cache co-deployed beside a product customers ship. RSALv2/SSPL are not OSI-open. |
+| DragonflyDB | BSL 1.1 (source-available) | ~4.5× single-node throughput via shared-nothing threads — irrelevant to our op rate. Source-available, not OSI-open. Keep as a drop-in option for an operator who already runs it. |
+| Garnet (Microsoft) | MIT | Strong scaling, RESP-compatible, but C#/.NET runtime — a foreign dependency in a Rust shop for no workload benefit. |
+
+**Why Valkey over staying on "Redis":** the license. noodle is a
+proxy customers deploy in their own clusters; co-deploying an
+AGPL-licensed cache invites a legal review every customer would
+rather skip. Valkey's BSD-3 removes that conversation, performance is
+identical (it forked from Redis 7.2.4), and it is the default
+"Redis-compatible" engine on AWS ElastiCache/MemoryDB, GCP
+Memorystore, and Azure. The config value is `backend = "valkey"`
+(`"redis"` accepted as an alias; both drive the same RESP adapter).
+
+### Client: `fred`
+
+| Client | Why / why not |
+|---|---|
+| **`fred`** *(chosen)* | Markets itself as the async client "for **Valkey and Redis**"; RESP2/RESP3; centralized, sentinel, and cluster topologies; **built-in reconnection, backoff, and per-command timeout policies** — a direct fit for I3 (`op_timeout_ms` → fail-open-cold) without hand-rolling pool/timeout layers. Supports `EVAL`/`EVALSHA` for the §4 CAS Lua. |
+| `redis-rs` (`redis`) | Mature, RESP3, cluster merged in — but pooling (deadpool/bb8) and timeout/reconnect policy are bolted on, which is exactly the I3 machinery `fred` gives natively. The conservative fallback if `fred` proves unsuitable. |
+| `rustis` | Capable, smaller community; no reason to prefer it over `fred` here. |
+
+### Service guarantees (HA)
+
+- **Self-hosted (default k8s deploy):** one Valkey primary + one
+  replica with **Sentinel** for automatic failover. Cluster-mode
+  sharding is unnecessary — a single session keyspace of TTL'd
+  low-KB values fits one node with room to spare; sharding adds
+  operational surface for capacity we don't need.
+- **Managed (cloud deploys):** **ElastiCache for Valkey, Serverless**
+  — multi-AZ, automatic failover, 99.99% SLA, autoscaling, Valkey 8.
+  **MemoryDB is not required:** its durable multi-AZ transaction log
+  buys data-loss-free failover, but fail-open-cold (I3) already
+  tolerates total state loss as a quality degradation, so the cheaper
+  ElastiCache tier is the right default.
+
+### Landscape basis (as of 2026-06)
+
+Redis relicensed away from OSI-open in March 2024 (RSALv2/SSPLv1),
+then re-added AGPLv3 in Redis 8 (May 2025); AGPL remains copyleft.
+Valkey forked from Redis 7.2.4 under BSD-3 with Linux Foundation
+governance and broad cloud backing. Throughput ranking on many-core
+hardware is Dragonfly > Garnet ≈ Valkey/Redis for write-heavy
+high-concurrency loads — a regime noodle's two-ops-per-model-turn
+workload never enters. Sources:
+[Redis AGPLv3](https://redis.io/blog/agplv3/),
+[What is Valkey (redis.io)](https://redis.io/blog/what-is-valkey/),
+[ElastiCache for Valkey 8.0](https://aws.amazon.com/about-aws/whats-new/2024/11/elasticache-version-8-0-for-valkey-scaling-memory-efficiency),
+[fred.rs](https://github.com/aembke/fred.rs),
+[Dragonfly vs Valkey benchmark](https://www.dragonflydb.io/blog/dragonfly-vs-valkey-benchmark-on-google-cloud).
 
 ---
 
