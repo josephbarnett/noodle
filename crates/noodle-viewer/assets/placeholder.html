@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>noodle-viewer</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0a0a0a; color: #e8e8e8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+    main { padding: 4rem 2rem; max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin: 0 0 0.5rem 0; font-weight: 500; letter-spacing: -0.02em; }
+    p { color: #a8a8a8; line-height: 1.6; }
+    code { background: #1a1a1a; padding: 0.15em 0.45em; border-radius: 4px; font-size: 0.9em; }
+    pre { background: #141414; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; }
+    .live { color: #4ade80; }
+    .dim { color: #555; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>noodle-viewer <span class="dim">— UI not built</span></h1>
+    <p>The Rust backend is running, but no React build artifacts are embedded.</p>
+    <p>Build the UI:</p>
+    <pre>cd crates/noodle-viewer/web
+npm install
+npm run build</pre>
+    <p>Then rebuild and re-run:</p>
+    <pre>cargo run --release --bin noodle-viewer</pre>
+    <p class="dim">In development mode, run <code>npm run dev</code> separately for hot reload at <code>http://localhost:5173</code>.</p>
+  </main>
+</body>
+</html>

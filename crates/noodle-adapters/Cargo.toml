@@ -1,0 +1,43 @@
+[package]
+name = "noodle-adapters"
+description = "Driven adapters for the noodle attribution proxy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+noodle-core.workspace = true
+
+bytes.workspace = true
+futures.workspace = true
+http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+smallvec.workspace = true
+smol_str.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# In-memory session store
+dashmap.workspace = true
+
+# ULID generation for proxy-minted TurnIds (ADR 028 §1.3, §2)
+ulid = "1"
+
+
+[dev-dependencies]
+noodle-sinks.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "net", "io-util", "fs"] }
+tempfile = "3"
+# A.7 perf bench — legacy vs layered codec paths
+criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"] }
+
+[[bench]]
+name = "codec_paths"
+harness = false
+
+[lints]
+workspace = true

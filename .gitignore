@@ -1,0 +1,38 @@
+/target
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Local debug artifacts (per docs/guides/demo.md)
+*.err
+*.log
+*.jsonl
+
+# Secrets — never commit. .env / .env.local hold real keys; .env.example is a tracked template.
+.env
+.env.*
+!.env.example
+
+# noodle-viewer frontend build artifacts
+crates/noodle-viewer/web/node_modules/
+crates/noodle-viewer/web/dist/*
+!crates/noodle-viewer/web/dist/.gitkeep
+crates/noodle-viewer/web/tsconfig.tsbuildinfo
+# tsc -b emits .js + .js.map alongside .ts in src/; we don't track them
+crates/noodle-viewer/web/src/**/*.js
+crates/noodle-viewer/web/src/**/*.js.map
+
+# Personal scratch files at repo root — kept locally, not for the repo.
+/noodler.md
+
+# macOS app build artifacts (Story 011 transparent mode)
+apps/noodle-macos/.xcode-derived/
+apps/noodle-macos/Noodle.xcodeproj/
+apps/noodle-macos/*.xcodeproj/
+
+# mitmproxy captures — contain live auth/cookies, often multi-GB. Never commit.
+captures/
+
+# Soft-delete bin — files moved here are recoverable locally but not committed.
+/.delete/

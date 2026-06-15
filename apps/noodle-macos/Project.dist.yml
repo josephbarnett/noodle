@@ -1,0 +1,82 @@
+name: Noodle
+options:
+  bundleIdPrefix: com.noodleproxy.macos
+  deploymentTarget:
+    macOS: "12.0"
+
+packages:
+  RamaAppleNetworkExtension:
+    path: ../../../rama
+
+targets:
+  Noodle:
+    type: application
+    platform: macOS
+    sources:
+      - path: Container
+    dependencies:
+      - target: NoodleExtension
+        embed: true
+        codeSign: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.noodleproxy.macos.dist
+        CURRENT_PROJECT_VERSION: "$(NOODLE_TPROXY_CURRENT_PROJECT_VERSION)"
+        INFOPLIST_FILE: Container/Info.plist
+        MARKETING_VERSION: "$(NOODLE_TPROXY_MARKETING_VERSION)"
+        CODE_SIGN_ENTITLEMENTS: Container/Container.entitlements
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "$(NOODLE_TPROXY_CONTAINER_SIGNING_IDENTITY)"
+        DEVELOPMENT_TEAM: "$(NOODLE_TPROXY_DEVELOPMENT_TEAM)"
+        PROVISIONING_PROFILE_SPECIFIER: "$(NOODLE_TPROXY_CONTAINER_PROFILE_SPECIFIER)"
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
+        NE_ENTITLEMENT_SUFFIX: "-systemextension"
+        CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+        GENERATE_PROVISIONING_PROFILE: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        OTHER_CODE_SIGN_FLAGS:
+          - "--timestamp"
+          - "--options=runtime"
+        APP_GROUP_ID: "$(AppIdentifierPrefix)com.noodleproxy.macos.dist"
+
+  NoodleExtension:
+    type: system-extension
+    platform: macOS
+    sources:
+      - path: Extension
+    dependencies:
+      - package: RamaAppleNetworkExtension
+        product: RamaAppleNetworkExtension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.noodleproxy.macos.dist.provider
+        PRODUCT_NAME: com.noodleproxy.macos.dist.provider
+        CURRENT_PROJECT_VERSION: "$(NOODLE_TPROXY_CURRENT_PROJECT_VERSION)"
+        INFOPLIST_FILE: Extension/Info.plist
+        MARKETING_VERSION: "$(NOODLE_TPROXY_MARKETING_VERSION)"
+        CODE_SIGN_ENTITLEMENTS: Extension/Extension.entitlements
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "$(NOODLE_TPROXY_EXTENSION_SIGNING_IDENTITY)"
+        DEVELOPMENT_TEAM: "$(NOODLE_TPROXY_DEVELOPMENT_TEAM)"
+        PROVISIONING_PROFILE_SPECIFIER: "$(NOODLE_TPROXY_EXTENSION_PROFILE_SPECIFIER)"
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
+        NE_ENTITLEMENT_SUFFIX: "-systemextension"
+        APP_GROUP_ID: "$(AppIdentifierPrefix)com.noodleproxy.macos.dist"
+        CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+        GENERATE_PROVISIONING_PROFILE: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        OTHER_CODE_SIGN_FLAGS:
+          - "--timestamp"
+          - "--options=runtime"
+        ENABLE_DEBUG_DYLIB: NO
+        OTHER_LDFLAGS:
+          - "$(SRCROOT)/../../target/release/libnoodle_macos_tproxy.a"
+          - "-framework"
+          - "NetworkExtension"
+          - "-framework"
+          - "SystemConfiguration"
+          - "-lz"

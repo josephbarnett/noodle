@@ -1,0 +1,98 @@
+name: Noodle
+options:
+  bundleIdPrefix: com.noodleproxy.macos
+  deploymentTarget:
+    macOS: "12.0"
+
+packages:
+  # rama lives as a sibling checkout to noodle. Path is resolved
+  # relative to the Project.yml location (apps/noodle-macos/).
+  RamaAppleNetworkExtension:
+    path: ../../../rama
+
+targets:
+  Noodle:
+    type: application
+    platform: macOS
+    sources:
+      - path: Container
+    dependencies:
+      - target: NoodleExtension
+        embed: true
+        codeSign: true
+      - package: RamaAppleNetworkExtension
+        product: RamaAppleXpcClient
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.noodleproxy.macos.dev
+        CURRENT_PROJECT_VERSION: "$(NOODLE_TPROXY_CURRENT_PROJECT_VERSION)"
+        INFOPLIST_FILE: Container/Info.plist
+        MARKETING_VERSION: 0.1
+        CODE_SIGN_ENTITLEMENTS: Container/Container.entitlements
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "$(NOODLE_TPROXY_CONTAINER_SIGNING_IDENTITY)"
+        DEVELOPMENT_TEAM: "$(NOODLE_TPROXY_DEVELOPMENT_TEAM)"
+        PROVISIONING_PROFILE_SPECIFIER: "$(NOODLE_TPROXY_CONTAINER_PROFILE_SPECIFIER)"
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
+        NE_ENTITLEMENT_SUFFIX: ""
+        APP_GROUP_ID: "$(AppIdentifierPrefix)com.noodleproxy.macos.dev"
+
+  NoodleTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+      # Source duplicated into the test target so UninstallService
+      # can be exercised without hosting the full app binary
+      # (avoids signing/sandbox complications for the test runner).
+      - path: Container/UninstallService.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.noodleproxy.macos.dev.tests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "$(NOODLE_TPROXY_CONTAINER_SIGNING_IDENTITY)"
+        DEVELOPMENT_TEAM: "$(NOODLE_TPROXY_DEVELOPMENT_TEAM)"
+
+  NoodleExtension:
+    type: system-extension
+    platform: macOS
+    sources:
+      - path: Extension
+    dependencies:
+      - package: RamaAppleNetworkExtension
+        product: RamaAppleNetworkExtension
+      - package: RamaAppleNetworkExtension
+        product: RamaAppleSecureEnclave
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.noodleproxy.macos.dev.provider
+        PRODUCT_NAME: com.noodleproxy.macos.dev.provider
+        CURRENT_PROJECT_VERSION: "$(NOODLE_TPROXY_CURRENT_PROJECT_VERSION)"
+        INFOPLIST_FILE: Extension/Info.plist
+        MARKETING_VERSION: 0.1
+        CODE_SIGN_ENTITLEMENTS: Extension/Extension.entitlements
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "$(NOODLE_TPROXY_EXTENSION_SIGNING_IDENTITY)"
+        DEVELOPMENT_TEAM: "$(NOODLE_TPROXY_DEVELOPMENT_TEAM)"
+        PROVISIONING_PROFILE_SPECIFIER: "$(NOODLE_TPROXY_EXTENSION_PROFILE_SPECIFIER)"
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
+        NE_ENTITLEMENT_SUFFIX: ""
+        APP_GROUP_ID: "$(AppIdentifierPrefix)com.noodleproxy.macos.dev"
+        ENABLE_DEBUG_DYLIB: NO
+        # Path resolved from $(SRCROOT) = apps/noodle-macos/ to the
+        # workspace root's target dir. Iteration 2 uses the native-arch
+        # release build (cargo build --release -p noodle-macos-tproxy);
+        # a future iteration adds lipo for universal arm64+x86_64.
+        OTHER_LDFLAGS:
+          - "$(SRCROOT)/../../target/release/libnoodle_macos_tproxy.a"
+          - "-framework"
+          - "NetworkExtension"
+          - "-framework"
+          - "SystemConfiguration"
+          - "-lz"

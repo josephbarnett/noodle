@@ -1,0 +1,90 @@
+# noodle-macos build / install driver.
+#
+# Usage:
+#   cd apps/noodle-macos
+#   export NOODLE_TPROXY_DEVELOPMENT_TEAM=YOURTEAMID   # any Apple ID team
+#   just install-dev                                   # build, sign, install, launch
+#
+# Adapted from rama's ffi/apple/examples/transparent_proxy/justfile.
+# Modes:
+#   dev   — Apple Development signing, dev-mode bundle IDs (com.noodleproxy.macos.dev{,.provider})
+#   dist  — Developer ID signing, distribution bundle IDs (com.noodleproxy.macos.dist{,.provider})
+
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+set working-directory := '.'
+
+xcode_derived_data_dev  := "./.xcode-derived/noodle-app-dev"
+xcode_derived_data_dist := "./.xcode-derived/noodle-app-dist"
+built_app_dev           := xcode_derived_data_dev  + "/Build/Products/Debug/Noodle.app"
+built_app_dist          := xcode_derived_data_dist + "/Build/Products/Release/Noodle.app"
+
+# Build the staticlib that the Xcode system extension links against.
+# Single-arch (host arch) for now; a future iteration adds a universal
+# arm64+x86_64 build via lipo for distribution.
+[working-directory: '../..']
+build-staticlib:
+    cargo build --release -p noodle-macos-tproxy
+
+# Build the Xcode app + system extension with Apple Development signing.
+build-app-dev: build-staticlib
+    ./scripts/build_noodle_app_with_signing.sh
+
+# Build the Xcode app + system extension with Developer ID signing (distribution).
+build-app-dist: build-staticlib
+    ./scripts/build_noodle_app_with_developer_id_signing.sh
+
+# Notarize the distribution build (Apple ID + app-specific password required).
+notarize-app-dist:
+    ./scripts/notarize_noodle_app_with_developer_id_signing.sh
+
+# Build, install, and launch the dev-mode app. System extension activation
+# will prompt for approval the first time.
+install-dev: build-app-dev
+    ./scripts/install_noodle_app_bundle.sh dev "{{built_app_dev}}" 0
+    @echo "Installed dev system extension at /Applications/Noodle.app"
+    @echo "Approve it in: System Settings -> General -> Login Items & Extensions -> Network Extensions"
+
+# Same as install-dev, but pass --reset-profile-on-launch so the container
+# app deletes and recreates its saved NETransparentProxyManager profile.
+# Needed after entitlement / Info.plist / NEMachServiceName changes.
+install-dev-reset-profile: build-app-dev
+    ./scripts/install_noodle_app_bundle.sh dev "{{built_app_dev}}" 1
+    @echo "Installed dev system extension (profile reset)"
+
+# Build + notarize + install the distribution app.
+install-dist: notarize-app-dist
+    ./scripts/install_noodle_app_bundle.sh dist "{{built_app_dist}}" 0
+
+install-dist-reset-profile: notarize-app-dist
+    ./scripts/install_noodle_app_bundle.sh dist "{{built_app_dist}}" 1
+
+# Generate the .xcodeproj from Project.yml (without building).
+generate-xcodeproj:
+    xcodegen generate --spec Project.yml
+
+# List the live system extension state.
+list-sysext:
+    systemextensionsctl list | grep 'com\.noodleproxy\.macos' || echo '(no noodle sysext registered)'
+
+# Stream live logs from the extension + macOS NE daemons.
+log-stream:
+    log stream --info --debug \
+      --predicate 'process == "com.noodleproxy.macos.dev.provider" OR process == "neagent" OR process == "nesessionmanager" OR process == "sysextd" OR process == "launchd"'
+
+# Recent logs (last 5 minutes).
+log-recent:
+    log show --last 5m --style compact --info --debug \
+      --predicate 'process == "com.noodleproxy.macos.dev.provider" OR process == "neagent" OR process == "nesessionmanager" OR process == "sysextd"'
+
+# Uninstall is in-app only — open Noodle from the menu bar and pick
+# "Uninstall Noodle…". The container app is the only entity SIP
+# permits to deactivate the system extension.
+uninstall-dev:
+    @echo "Uninstall is in-app only. From the menu bar (🦙 tproxy demo):"
+    @echo "    Noodle → Uninstall Noodle…"
+    @echo "That stops the proxy, removes the saved NE profile, clears the CA,"
+    @echo "submits OSSystemExtensionRequest.deactivationRequest, and moves the"
+    @echo ".app to the Trash."
+
+clean:
+    rm -rf .xcode-derived Noodle.xcodeproj

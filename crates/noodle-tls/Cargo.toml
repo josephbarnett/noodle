@@ -1,0 +1,26 @@
+[package]
+name = "noodle-tls"
+description = "TLS MITM primitives — self-signed CA, in-process leaf signer. Proxy-host-only by construction (rcgen + std::fs); plugin hosts never MITM (ADR 039 §4 carve-out)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+noodle-core.workspace = true
+
+rcgen.workspace = true
+time.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+x509-parser = "0.16"
+pem = "3"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "fs", "io-util", "time"] }
+
+[lints]
+workspace = true

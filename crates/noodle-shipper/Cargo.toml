@@ -1,0 +1,52 @@
+[package]
+name = "noodle-shipper"
+description = "OTel shipper — reads ai-telemetry rollups from noodle-embellish's SQLite, emits OTLP/HTTP to a configurable collector (story 043, ADR 022 §3)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "noodle-shipper"
+path = "src/main.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# SQLite — bundled feature ships a vendored libsqlite3 so the build
+# is self-contained on macOS / Linux. Matches noodle-embellish's
+# vendoring choice so a shared dev workstation only ships one libsqlite3.
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Stable hash for deterministic OTLP trace/span IDs derived from
+# event_id / session_hash. Workspace pin matches noodle-core /
+# noodle-embellish-core / noodle-tap.
+sha2.workspace = true
+
+# HTTPS client for the OTLP HTTP/JSON transport. We hand-encode the
+# OTLP payloads (avoids the opentelemetry-otlp dep's protobuf surface
+# pulling in tonic + prost transitively); `reqwest` covers the wire.
+reqwest = { version = "0.12", default-features = false, features = ["http2", "rustls-tls", "json"] }
+
+# Async runtime for the polling main loop + HTTP exporter task.
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "time", "net", "io-util"] }
+
+# CLI surface for the binary.
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+
+# stderr logging for the binary main.
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+tempfile = "3"
+# In-process wiremock OTLP receiver for the integration test.
+wiremock = "0.6"
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "time", "net", "io-util"] }
+
+[lints]
+workspace = true

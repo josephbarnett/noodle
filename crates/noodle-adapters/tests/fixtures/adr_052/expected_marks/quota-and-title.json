@@ -1,0 +1,14 @@
+{
+  "capture": "quota-and-title",
+  "round_trip_count": 1,
+  "marks": [
+    {
+      "idx": 1,
+      "role": "main",
+      "frame_id": "ROOT",
+      "parent_frame_id": null,
+      "depth": 0,
+      "turn_id": "turn-1"
+    }
+  ]
+}

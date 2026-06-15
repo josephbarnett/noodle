@@ -1,0 +1,87 @@
+<mxfile host="65bd71144e">
+    <diagram id="plugin-topology" name="Plugin topology — noodle-detect WASM facade">
+        <mxGraphModel dx="824" dy="743" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1100" pageHeight="700" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Plugin topology — `noodle-detect` embedded in a host LLM gateway as a wasm32-unknown-unknown artifact" style="text;html=1;align=center;fontStyle=1;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="20" width="1020" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="client" value="LLM caller&#xa;(client app)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="280" width="140" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="host" value="Host LLM gateway (LiteLLM / Bifrost / Portkey / OpenAI Gateway / in-house)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="260" y="100" width="560" height="440" as="geometry"/>
+                </mxCell>
+                <mxCell id="host_io" value="Host I/O&#xa;(HTTP, auth, routing)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="290" y="160" width="160" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="shim" value="Plugin shim&#xa;(host language ↔ extern&#xa;function ABI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="290" y="280" width="160" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="runtime" value="WASM runtime&#xa;(wasmtime / wasmer / jco)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="490" y="160" width="310" height="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="facade" value="noodle-detect.wasm" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="510" y="200" width="270" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="detect_fn" value="pub fn detect(req, resp, ctx)&#xa;→ AttributionFacts" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="525" y="240" width="240" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="purelogic" value="• request_detector, marking&#xa;• transform::{marker_strip, attribution_inject}&#xa;• embellish_core mapper&#xa;• noodle-domain typed vocab" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="525" y="300" width="240" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="telemetry" value="Host telemetry&#xa;consumer&#xa;(OTLP collector,&#xa;the telemetry backend, etc.)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="900" y="260" width="140" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="llm" value="LLM provider&#xa;(Anthropic /&#xa;OpenAI / etc.)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="900" y="120" width="140" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;startArrow=none;" parent="1" source="client" target="host_io" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="130" y="190"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e1_label" value="HTTP request" style="text;html=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="153" y="163" width="90" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;startArrow=none;" parent="1" source="host_io" target="llm" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="370" y="142"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e2_label" value="forwarded" style="text;html=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="830" y="140" width="60" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;startArrow=none;dashed=1;" parent="1" source="host_io" target="shim" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3_label" value="req + resp bytes" style="text;html=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="290" y="240" width="160" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;startArrow=none;" parent="1" source="shim" target="detect_fn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4_label" value="extern &quot;C&quot; ABI" style="text;html=1;align=center;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="444" y="243" width="75" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;html=1;startArrow=classic;" parent="1" source="facade" target="telemetry" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5_label" value="AttributionFacts" style="text;html=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="290" width="110" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_box" value="Boundaries" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="580" width="1000" height="143" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_text" value="• Yellow box: host gateway boundary — owns HTTP, auth, routing, observability.&#xa;• Purple box: WASM runtime — sandboxed; deterministic.&#xa;• Green box: noodle-detect.wasm artifact — pure function from (req, resp, ctx) → AttributionFacts (ADR 039 §2.3).&#xa;• Dashed arrow: in-process call across the WASM boundary via extern &quot;C&quot; shim (ADR 039 §2.5).&#xa;• Host telemetry consumer is the host&#39;s responsibility; AttributionFacts is the contract between the two." style="text;html=1;align=left;verticalAlign=top;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="610" width="970" height="70" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

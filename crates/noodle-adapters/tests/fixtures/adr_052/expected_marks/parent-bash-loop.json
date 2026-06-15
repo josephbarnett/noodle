@@ -1,0 +1,38 @@
+{
+  "capture": "parent-bash-loop",
+  "round_trip_count": 4,
+  "marks": [
+    {
+      "idx": 1,
+      "role": "main",
+      "frame_id": "ROOT",
+      "parent_frame_id": null,
+      "depth": 0,
+      "turn_id": "turn-1"
+    },
+    {
+      "idx": 2,
+      "role": "main",
+      "frame_id": "ROOT",
+      "parent_frame_id": null,
+      "depth": 0,
+      "turn_id": "turn-1"
+    },
+    {
+      "idx": 3,
+      "role": "main",
+      "frame_id": "ROOT",
+      "parent_frame_id": null,
+      "depth": 0,
+      "turn_id": "turn-1"
+    },
+    {
+      "idx": 4,
+      "role": "main",
+      "frame_id": "ROOT",
+      "parent_frame_id": null,
+      "depth": 0,
+      "turn_id": "turn-1"
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "capture": "parent-task-subagent",
+  "round_trip_count": 8,
+  "marks": [
+    {
+      "idx": 1,
+      "role": "main",
+      "frame_id": "ROOT",
+      "parent_frame_id": null,
+      "depth": 0,
+      "turn_id": "turn-1"
+    },
+    {
+      "idx": 2,
+      "role": "sub_agent",
+      "frame_id": "toolu_012Y8jeMfYYbNWTHPS1Nujbw",
+      "parent_frame_id": "ROOT",
+      "depth": 1,
+      "turn_id": "turn-1"
+    },
+    {
+      "idx": 3,
+      "role": "sub_agent",
+      "frame_id": "toolu_012Y8jeMfYYbNWTHPS1Nujbw",
+      "parent_frame_id": "ROOT",
+      "depth": 1,
+      "turn_id": "turn-1"
+    },
+    {
+      "idx": 4,
+      "role": "sub_agent",
+      "frame_id": "toolu_012Y8jeMfYYbNWTHPS1Nujbw",
+      "parent_frame_id": "ROOT",
+      "depth": 1,
+      "turn_id": "turn-1"
+    },
+    {
+      "idx": 5,
+      "role": "sub_agent",
+      "frame_id": "toolu_012Y8jeMfYYbNWTHPS1Nujbw",
+      "parent_frame_id": "ROOT",
+      "depth": 1,
+      "turn_id": "turn-1"
+    },
+    {
+      "idx": 6,
+      "role": "sub_agent",
+      "frame_id": "toolu_012Y8jeMfYYbNWTHPS1Nujbw",
+      "parent_frame_id": "ROOT",
+      "depth": 1,
+      "turn_id": "turn-1"
+    },
+    {
+      "idx": 7,
+      "role": "side_call",
+      "frame_id": null,
+      "parent_frame_id": null,
+      "depth": null,
+      "turn_id": null
+    },
+    {
+      "idx": 8,
+      "role": "main",
+      "frame_id": "ROOT",
+      "parent_frame_id": null,
+      "depth": 0,
+      "turn_id": "turn-1"
+    }
+  ]
+}

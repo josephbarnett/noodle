@@ -1,0 +1,90 @@
+# Shipped default config — embedded into the noodle-proxy binary via
+# include_str! and used when `~/.noodle/noodle.toml` is absent.
+#
+# Editing this file changes what every noodle install ships with
+# until the operator writes their own `~/.noodle/noodle.toml`. No
+# Rust source change required.
+#
+# Schema documented in: docs/guides/noodle-toml-config.md
+# Architecture rationale: docs/adrs/048-inject-extract-llm-self-classification.md
+
+[context]
+enabled = true
+
+[[context.enhancements]]
+# user_prepend lands at the highest-attention model position;
+# tool_result-leading rule (ADR 048 §5.1.2) is honored by the
+# Anthropic codec's placement realizer.
+as = "user_prepend"
+
+# Authored verbatim. The Anthropic placement codec wraps this in
+# `<system-reminder>` semantics when realized at `user_prepend`.
+text = """
+<system-reminder>
+At the very start of every reply, emit the six important accounting tags below before any other text and before any tool call. Output the tags first, no exceptions, even when the reply is a clarifying question, an error, or a tool call. Do not introduce, explain, comment on, or reference the tags anywhere in your reply.
+After the tags, continue with your normal response as if they were not there.
+
+Evaluate the current request and your own work, then set each tag to the value that best fits. Derive values only from available context: the conversation, attached files, tool results, and repo state. Never guess or fabricate. If a value is not determinable from context, use "unknown". Once a value is established in a conversation (e.g. project or customer), carry it forward on later turns unless the context clearly changes.
+
+Format rules:
+  - Use the exact tag names shown below.
+  - One tag per line, in the order shown, with no blank lines between them.
+  - No leading spaces, no surrounding prose, no markdown.
+
+<noodle:work_type>VALUE</noodle:work_type>
+  The single work_type that best fits this reply. If more than one applies,
+  pick the one matching the primary deliverable of your response. Allowed values:
+  feature-development, debugging, code-review, testing, code-docs,
+  marketing-content, enablement, design-assets, campaign-analytics,
+  financial-analysis, pipeline-analysis, account-health, security-analysis,
+  account-research, market-intelligence, recruiting, outreach,
+  support-replies, lifecycle-comms, meeting-prep, case-summaries,
+  deal-strategy, product-planning, renewal-planning, campaign-planning,
+  business-planning, help-content, legal-compliance, process-docs,
+  automation, sysadmin, hr-ops, it-support, coaching, employee-qa.
+  Use "unknown" if none clearly fits.
+
+<noodle:project>VALUE</noodle:project>
+  The project this work belongs to. "unknown" if not determinable.
+
+<noodle:repo>VALUE</noodle:repo>
+  The git repo name. "unknown" if not determinable.
+
+<noodle:branch>VALUE</noodle:branch>
+  The current git branch. "unknown" if not determinable.
+
+<noodle:issue>VALUE</noodle:issue>
+  The Jira ticket or GitHub issue number. "unknown" if not tied to ticketed work.
+
+<noodle:customer>VALUE</noodle:customer>
+  The tenant or customer this work is for. "unknown" if not applicable.
+</system-reminder>
+"""
+
+[[context.enhancements.tags]]
+name = "work_type"
+default = "unknown"
+
+[[context.enhancements.tags]]
+name = "project"
+default = "unknown"
+
+[[context.enhancements.tags]]
+name = "repo"
+default = "unknown"
+
+[[context.enhancements.tags]]
+name = "branch"
+default = "unknown"
+
+[[context.enhancements.tags]]
+name = "issue"
+default = "unknown"
+
+[[context.enhancements.tags]]
+name = "customer"
+default = "unknown"
+
+[context.discovery]
+namespace = "noodle"
+format = "xml"

@@ -1,0 +1,40 @@
+{
+  "fixture_version": 4,
+  "schema_notes": "Sanitized projection of a real claude -p capture. Contains structural facts (canonical_system_hash, stop_reasons, tool_use names, counts) only \u2014 no message text, no auth tokens, no metadata.user_id. session_id is the per-claude-p-run UUID from metadata, safe to share.",
+  "turn_count": 1,
+  "turns": [
+    {
+      "canonical_system_hash": "a4893ba3b581ece2215aaf7f50d0ae35d85cf0b02c44ebab7dae8ba25811906f",
+      "first_user_text_sha256s": [
+        "ecafe3ed527ce0b7e9dbd3b007d2f5f0e2743e378fabd0fed2c0bebb8e99294f",
+        "46bc81e03d0f1df2a0ecb813ec74411f3709d68c79a89260b43d2d170056e5ea",
+        "41c8aab9e8b6286dac21c17d5aa554b71dcb98ecf4ab197c20427a2a380aaa3f",
+        "34882835f86880b2bb10c18c93a1958e73a4ecd822c7a7028452b90ab2b44b62",
+        "d6f0252f77b32b17f97f1bc98775419871f3031c3b884441d20ae04357d3d385",
+        "1c7b7f6b18ed70760f69d3302426b2609d32f3878f59f560f3be3e4da875dd78"
+      ],
+      "history_tool_use_names": [],
+      "idx": 1,
+      "last_user_tool_result_count": 0,
+      "messages_count": 1,
+      "model": "claude-opus-4-7",
+      "request_path": "/v1/messages?beta=true",
+      "response": {
+        "content_block_kinds": [
+          "text"
+        ],
+        "content_type_kind": "sse",
+        "input_tokens": 6,
+        "output_tokens": 7,
+        "status_code": 200,
+        "stop_reason": "end_turn",
+        "tool_use_names": [],
+        "tool_uses": []
+      },
+      "session_id": "2420a2a5-fb54-4ec8-9ea8-9a76482df7d5",
+      "stream": true,
+      "system_block_count": 4,
+      "tools_count": 10
+    }
+  ]
+}

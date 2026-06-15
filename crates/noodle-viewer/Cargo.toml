@@ -1,0 +1,88 @@
+[package]
+name = "noodle-viewer"
+description = "Live debug viewer for noodle — HTTP / SSE / OODA modes from one event stream"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "noodle-viewer"
+path = "src/main.rs"
+
+[dependencies]
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# `WireSource::FileTail` — S15 of the 027–031 refactor (refactor-overview
+# §2). The hub consumes `tap.jsonl` through this source rather than
+# parsing the file itself; future non-file sources (network, queue) drop
+# in via the same `WireSource` trait.
+noodle-core.workspace = true
+noodle-tap.workspace = true
+
+# `AnthropicDecoder` + typed vocabulary (ADR 029 §7, S21 of the
+# 027–031 refactor — refactor-overview.md §10). The hub dispatches
+# raw `tap.jsonl` records through a `ProviderDecoder` registry to
+# build typed `DecodedExchange`s carrying marks / envelope / usage /
+# content blocks / events / pairing.
+noodle-domain.workspace = true
+
+# ADR 047 rung 1 brain: pairs round-trips and surfaces compaction
+# directive + structural diff signals to the viewer as a new
+# `ServerMsg::Brain` event. Pure module, no I/O.
+noodle-embellish-core.workspace = true
+
+# V2 OTLP query tab — read-only ad-hoc SQL over the embellisher's
+# `rollups.db` (ADR 031 §3.1). `bundled` matches the embellish/shipper
+# crates so the viewer ships the same SQLite as the writer.
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# HTTP + WebSocket framework. axum is small, well-supported, and uses
+# tokio-native primitives — no need to pull rama into the viewer.
+axum = { version = "0.8", features = ["ws", "macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+
+# Async runtime
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "rt-multi-thread", "signal", "sync", "time"] }
+# SSE streaming for /api/decoded-exchanges (S22 — refactor-overview
+# §10). `tokio-stream::wrappers::BroadcastStream` adapts the hub's
+# `broadcast::Receiver<Arc<DecodedExchange>>` into an SSE stream;
+# `futures-util` supplies the `StreamExt::filter_map` combinator we
+# use to map broadcast items to axum `Event`s.
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures-util = "0.3"
+
+# Filesystem watching for live tail of jsonl files
+notify = "8"
+
+# Bundle the built React UI into the binary at compile time
+rust-embed = { version = "8", features = ["interpolate-folder-path"] }
+mime_guess = "2"
+
+# REST forwarding to noodle's debug API
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["test-util", "process"] }
+tokio-tungstenite = "0.27"
+futures-util = "0.3"
+
+# S15 integration / exec-claude e2e tests need a real noodle proxy
+# spawning a real TapJsonlLog into a tempfile; the viewer hub then
+# consumes via WireSource::FileTail. Mirror of the e2e harness used
+# by `noodle-tap::tests::e2e_file_tail_*`.
+noodle-proxy.workspace = true
+noodle-adapters.workspace = true
+noodle-tls.workspace = true
+rama.workspace = true
+
+[lints]
+workspace = true

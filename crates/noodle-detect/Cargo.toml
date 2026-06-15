@@ -1,0 +1,42 @@
+[package]
+name = "noodle-detect"
+description = "Plugin-host facade — synchronous detect(req, resp, ctx) -> AttributionFacts API for embedding noodle's attribution pipeline in existing LLM gateways (ADR 039 §2.3)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+# Pure types + ports.
+noodle-core.workspace = true
+# Typed telemetry vocabulary.
+noodle-domain.workspace = true
+# Pure embellishment mapper (tap.jsonl → ai-telemetry v0.0.2).
+noodle-embellish-core.workspace = true
+# Pure-logic detector / marking / transform submodules.
+# (Sinks, cert minting, TLS, and other host-bound modules of
+# noodle-adapters are not consumed here, but the crate currently
+# ships them as a single unit. ADR 039 §4 future work may further
+# carve noodle-adapters; today's facade depends on it whole and
+# trusts the pure submodules.)
+noodle-adapters.workspace = true
+
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+smol_str.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# WASM target enablement (ADR 039 §8 signal #1). The pure-logic
+# `ulid`/`rand` chain pulls `getrandom@0.3`, which requires the
+# `wasm_js` feature on `wasm32-unknown-unknown`. Set here via a
+# target-specific direct dep so cargo's feature unification turns it
+# on for the wasm build — no `#[cfg(not(target_arch = "wasm32"))]`
+# guards in source (forbidden by ADR 039 §8).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,33 @@
+[package]
+name = "noodle-macos-tproxy"
+description = "noodle macOS transparent proxy — Rust staticlib for the system extension"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+# `staticlib` is what the Xcode system extension links against.
+# `rlib` is kept so the crate participates in `cargo check --workspace`.
+crate-type = ["staticlib", "rlib"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+rama = { workspace = true, features = ["net-apple-networkextension", "net-apple-xpc"] }
+tracing.workspace = true
+tracing-subscriber = "0.3"
+tracing-oslog = "0.3"
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+tempfile = "3"
+
+[lints.rust]
+# FFI macro from rama's apple_ne emits unsafe blocks. Workspace forbids
+# unsafe globally; opt out for this crate only.
+unsafe_code = "allow"
+unused_imports = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"

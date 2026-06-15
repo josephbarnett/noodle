@@ -1,0 +1,31 @@
+[package]
+name = "noodle-domain"
+description = "Typed vocabulary for noodle's Agent Protocol — content semantics and operational context (ADR 029). Pure types, no runtime."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+noodle-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time = { workspace = true, features = ["serde", "macros", "formatting", "parsing"] }
+semver = { version = "1", features = ["serde"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+# Below are exclusively for the S14 exec-claude e2e test in
+# `tests/e2e_anthropic_decoder_exec_claude.rs`. The library itself
+# remains pure-types per ADR 029 §1 — these deps are test-only.
+noodle-tap.workspace = true
+noodle-adapters.workspace = true
+noodle-proxy.workspace = true
+noodle-tls.workspace = true
+tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process", "time"] }
+
+[lints]
+workspace = true

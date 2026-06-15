@@ -1,0 +1,18 @@
+# Gateway Service — proxy port + viewer port. The ops port (9091) is
+# deliberately off the Service (kubelet probes hit the Pod directly;
+# Prometheus uses Pod-IP discovery). For the proof you reach this via
+# `kubectl port-forward svc/noodle-gateway 62100:62100` (see
+# scripts/watch-gateway.sh) and the brain-aware noodle-viewer at
+# `kubectl port-forward svc/noodle-gateway 9092:9092`.
+apiVersion: v1
+kind: Service
+metadata:
+  name: noodle-gateway
+  namespace: noodle
+  labels: { app: noodle-gateway }
+spec:
+  type: ClusterIP
+  selector: { app: noodle-gateway }
+  ports:
+    - { name: proxy,  port: 62100, targetPort: 62100 }
+    - { name: viewer, port: 9092,  targetPort: 9092 }

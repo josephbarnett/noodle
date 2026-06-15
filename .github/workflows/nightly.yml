@@ -1,0 +1,41 @@
+name: nightly
+
+# Runs the #[ignore]d e2e tests against the real Anthropic API once
+# per day. The exec-claude e2e validates the marking detector's
+# tap.jsonl contract against real Anthropic traffic — the truth
+# test that lives in the codebase but doesn't gate every PR.
+#
+# Skipped on forks (no ANTHROPIC_API_KEY secret).
+
+on:
+  schedule:
+    - cron: "0 6 * * *"  # 06:00 UTC daily
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  exec-claude-e2e:
+    name: exec-claude e2e — tap.jsonl marks contract
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install claude CLI
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Verify claude installed
+        run: claude --version
+      - name: Run exec-claude e2e
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::ANTHROPIC_API_KEY not set — exec-claude e2e cannot run; skipping"
+            exit 0
+          fi
+          cargo test -p noodle-proxy --test e2e_marking_exec_claude -- --ignored --nocapture

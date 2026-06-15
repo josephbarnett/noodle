@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Pre-commit hook for the noodle workspace.
+#
+# Runs the same gates CI runs (fmt, clippy --workspace --all-targets
+# -- -D warnings, cargo test --workspace) so a commit that would
+# fail CI can't land locally either. Mirrors `make fmt-check`,
+# `make lint`, `make test` — keep this in sync with the Makefile
+# when those change.
+#
+# To enable per-clone (committed hooks aren't auto-installed):
+#
+#     git config core.hooksPath .githooks
+#
+# To bypass for an in-progress / WIP commit:
+#
+#     git commit --no-verify
+#
+# (Per AGENTS.md: avoid --no-verify except for genuine emergencies.
+# Hooks exist to catch regressions before they leave your machine.)
+
+set -euo pipefail
+
+# Colors only when stdout is a TTY.
+if [ -t 1 ]; then
+  bold=$'\033[1m'
+  red=$'\033[31m'
+  green=$'\033[32m'
+  yellow=$'\033[33m'
+  reset=$'\033[0m'
+else
+  bold='' red='' green='' yellow='' reset=''
+fi
+
+step() { printf "%s%s==>%s %s\n" "$bold" "$green" "$reset" "$1"; }
+fail() { printf "%s%spre-commit FAILED:%s %s\n" "$bold" "$red" "$reset" "$1" >&2; exit 1; }
+warn() { printf "%s%s!!%s %s\n" "$bold" "$yellow" "$reset" "$1"; }
+
+# Skip everything if the staged changeset has no Rust changes.
+# Doc-only / config-only commits don't need a 60s cargo run.
+staged_rust=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(rs|toml)$' || true)
+if [ -z "$staged_rust" ]; then
+  warn "no Rust / Cargo changes staged — skipping cargo gates"
+  exit 0
+fi
+
+# Run from the repo root so the `cargo` workspace resolves.
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+
+step "cargo fmt --all -- --check"
+cargo fmt --all -- --check || fail "rustfmt drift — run 'cargo fmt --all' and re-stage"
+
+step "cargo clippy --workspace --all-targets -- -D warnings"
+cargo clippy --workspace --all-targets -- -D warnings || fail "clippy warnings — fix before committing"
+
+step "cargo test --workspace --no-fail-fast"
+cargo test --workspace --no-fail-fast || fail "tests failing — fix before committing"
+
+printf "%s%spre-commit OK%s\n" "$bold" "$green" "$reset"

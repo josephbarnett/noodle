@@ -1,0 +1,76 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/noodle-core",
+    "crates/noodle-adapters",
+    "crates/noodle-tap",
+    "crates/noodle-proxy",
+    "crates/noodle-viewer",
+    "crates/noodle-macos-tproxy",
+    "crates/noodle-domain",
+    "crates/noodle-embellish",
+    "crates/noodle-shipper",
+    "crates/noodle-sinks",
+    "crates/noodle-cert-external",
+    "crates/noodle-embellish-core",
+    "crates/noodle-detect",
+    "crates/noodle-tls",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.93"
+license = "MIT OR Apache-2.0"
+authors = ["Joe Barnett"]
+
+[workspace.dependencies]
+# Foundational types — kept framework-free so noodle-core stays portable.
+bytes = "1"
+futures = "0.3"
+http = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+smallvec = "1.15"
+smol_str = { version = "0.3", features = ["serde"] }
+sha2 = "0.10"
+thiserror = "2"
+toml = "0.8"
+tracing = "0.1"
+
+# TLS MITM cert generation. rcgen for self-signed CA + per-host leaves.
+rcgen = { version = "0.13", features = ["x509-parser"] }
+time = "0.3"
+
+# Runtime + networking — only the proxy crate uses these directly.
+tokio = "1.52"
+dashmap = "6"
+# rama 0.3.0 is unreleased; main self-identifies as 0.3.0-rc1. crates.io
+# stops at 0.3.0-alpha.4, which does NOT publish the Apple NetworkExtension
+# transparent-proxy subcrate (net-apple-networkextension / net-apple-xpc) that
+# noodle-macos-tproxy depends on — that code exists only on the upstream main
+# branch. Pin to a specific SHA so every environment — local dev, CI,
+# contributors — resolves to identical bytes. Switch to a version pin once
+# rama 0.3 ships those features to crates.io.
+rama = { git = "https://github.com/plabayo/rama", rev = "db00a19d6665fb113b80b6b141bb2c6430b15c57", default-features = false, features = ["http-full", "boring"] }
+
+# Internal crates
+noodle-core = { path = "crates/noodle-core" }
+noodle-adapters = { path = "crates/noodle-adapters" }
+noodle-tap = { path = "crates/noodle-tap" }
+noodle-domain = { path = "crates/noodle-domain" }
+noodle-embellish = { path = "crates/noodle-embellish" }
+noodle-proxy = { path = "crates/noodle-proxy" }
+noodle-sinks = { path = "crates/noodle-sinks" }
+noodle-cert-external = { path = "crates/noodle-cert-external" }
+noodle-embellish-core = { path = "crates/noodle-embellish-core" }
+noodle-detect = { path = "crates/noodle-detect" }
+noodle-tls = { path = "crates/noodle-tls" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"

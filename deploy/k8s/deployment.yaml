@@ -1,0 +1,152 @@
+# ADR 043 proof — the sidecar gateway Pod: proxy + embellish(--watch) +
+# shipper, sharing one emptyDir. embellish runs in --watch mode (the S12
+# WireSource tail) so it maps live traffic instead of exiting at startup.
+#
+# Images are pulled from ghcr.io/josephbarnett (private → imagePullSecret
+# `ghcr`). CA is BYOCA-static from the `noodle-ca` Secret (deploy.sh
+# generates it from the local noodle root CA so the same ca.pem is
+# trusted by your quad).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: noodle-gateway
+  namespace: noodle
+  labels: { app: noodle-gateway }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: noodle-gateway }
+  template:
+    metadata:
+      labels: { app: noodle-gateway }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      imagePullSecrets:
+        - name: ghcr
+      volumes:
+        # The raw Secret — mounts root-owned 0400, unreadable by the
+        # nonroot proxy.
+        - name: noodle-ca-secret
+          secret: { secretName: noodle-ca, defaultMode: 0400 }
+        # Where the initContainer stages the CA, owned by uid 65532 so
+        # the nonroot proxy can read it (and it stays 0400, which the
+        # proxy's strict key-permission check requires).
+        - name: noodle-ca
+          emptyDir: {}
+        - name: noodle-data
+          emptyDir: {}
+        # Operator-editable proxy config (tag/enhancer language). Created
+        # by deploy.sh from crates/noodle-proxy/default-noodle.toml; edit
+        # the ConfigMap (or that file + re-run deploy.sh) and roll the
+        # deployment to pick up changes — config is read once at startup.
+        - name: noodle-config
+          configMap: { name: noodle-config }
+      initContainers:
+        # The proxy runs nonroot (uid 65532) and enforces a 0400-or-
+        # stricter, owner-readable key. A mounted Secret is root-owned,
+        # so the proxy can't read it. Stage the CA into an emptyDir
+        # owned by 65532 at 0400. (ADR 044's CA service removes this
+        # entirely — the proxy fetches the cert over HTTP, no mount.)
+        - name: ca-prep
+          image: busybox:1.37
+          command:
+            - "sh"
+            - "-c"
+            - "install -m 0400 -o 65532 -g 65532 /src-ca/ca.pem /ca/ca.pem &&
+               install -m 0400 -o 65532 -g 65532 /src-ca/ca.key /ca/ca.key"
+          volumeMounts:
+            - { name: noodle-ca-secret, mountPath: /src-ca, readOnly: true }
+            - { name: noodle-ca, mountPath: /ca }
+      containers:
+
+        - name: proxy
+          image: ghcr.io/josephbarnett/noodle-proxy:dev
+          imagePullPolicy: Always
+          env:
+            - { name: NOODLE_LISTEN, value: "0.0.0.0:62100" }
+            - { name: NOODLE_OPS_LISTEN, value: "0.0.0.0:9091" }
+            - { name: NOODLE_CA_MODE, value: "byoca-static" }
+            - { name: NOODLE_CA_DIR, value: "/etc/noodle/ca" }
+            - { name: NOODLE_CONFIG, value: "/etc/noodle/noodle.toml" }
+            - { name: NOODLE_LAYERED_CORE, value: "1" }
+          ports:
+            - { name: proxy, containerPort: 62100 }
+            - { name: ops, containerPort: 9091 }
+          volumeMounts:
+            - { name: noodle-ca, mountPath: /etc/noodle/ca, readOnly: true }
+            - { name: noodle-data, mountPath: /home/nonroot/.noodle }
+            # subPath: mount just the one key as a file, so it sits
+            # alongside the CA dir without shadowing /etc/noodle.
+            - { name: noodle-config, mountPath: /etc/noodle/noodle.toml, subPath: noodle.toml, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /readyz, port: ops }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: ops }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+
+        - name: embellish
+          image: ghcr.io/josephbarnett/noodle-embellish:dev
+          imagePullPolicy: Always
+          args:
+            - "--watch"
+            - "--tap"
+            - "/home/nonroot/.noodle/tap.jsonl"
+            - "--db"
+            - "/home/nonroot/.noodle/rollups.db"
+          volumeMounts:
+            - { name: noodle-data, mountPath: /home/nonroot/.noodle }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+
+        - name: shipper
+          image: ghcr.io/josephbarnett/noodle-shipper:dev
+          imagePullPolicy: Always
+          args:
+            - "--db"
+            - "/home/nonroot/.noodle/rollups.db"
+            - "--endpoint"
+            - "http://noodle-otlp-sink:4318"
+            - "--poll-secs"
+            - "5"
+          volumeMounts:
+            - { name: noodle-data, mountPath: /home/nonroot/.noodle }
+          resources:
+            requests: { cpu: "50m", memory: "32Mi" }
+            limits: { cpu: "200m", memory: "128Mi" }
+
+        # noodle-viewer (ADR 007 local debugger, brain-aware per ADR 047
+        # rung 1) hosted as a fourth sidecar in the gateway Pod. Reads
+        # tap.jsonl + side_effects.jsonl from the shared `emptyDir`
+        # read-only — viewer never writes to the proxy's data — and
+        # serves the React UI + WebSocket on :9092 for `kubectl
+        # port-forward svc/noodle-gateway 9092:9092`.
+        #
+        # No auth: anyone with port-forward access sees plaintext
+        # bodies. Acceptable for the home-cluster + port-forward UX;
+        # an Ingress / public exposure path would need basic auth or
+        # `oauth2-proxy` in front.
+        - name: viewer
+          image: ghcr.io/josephbarnett/noodle-viewer:dev
+          imagePullPolicy: Always
+          args:
+            - "--listen"
+            - "0.0.0.0:9092"
+            - "--tap-file"
+            - "/home/nonroot/.noodle/tap.jsonl"
+            - "--side-effects-file"
+            - "/home/nonroot/.noodle/side_effects.jsonl"
+          ports:
+            - { name: viewer, containerPort: 9092 }
+          volumeMounts:
+            - { name: noodle-data, mountPath: /home/nonroot/.noodle, readOnly: true }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "300m", memory: "256Mi" }

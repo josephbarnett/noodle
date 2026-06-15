@@ -1,0 +1,15 @@
+# Keep the build context small — these are multi-GB or irrelevant to the
+# Rust workspace build.
+target/
+apps/
+**/node_modules/
+.git/
+.github/
+docs/
+demos/
+*.jsonl
+.noodle/
+noodle.err
+noodle.log
+*.png
+*.drawio

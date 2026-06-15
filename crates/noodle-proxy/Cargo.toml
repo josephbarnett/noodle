@@ -1,0 +1,80 @@
+[package]
+name = "noodle-proxy"
+description = "noodle proxy binary — driving adapter (rama service stack)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "noodle"
+path = "src/main.rs"
+
+[features]
+default = ["tap"]
+# When enabled, links noodle-tap and writes a TAP-format JSONL debug
+# log alongside the stdout wire log. Disable for production builds:
+# `cargo build --release --no-default-features`.
+tap = ["dep:noodle-tap"]
+
+[dependencies]
+noodle-core.workspace = true
+noodle-adapters.workspace = true
+noodle-cert-external.workspace = true
+noodle-sinks.workspace = true
+noodle-tls.workspace = true
+# noodle-domain is used by the envelope builder (S6, ADR 029 §2.4)
+# to construct typed `AgentApp` / `Machine` / `CollectorApp`
+# values which are then serialized to `serde_json::Value` at the
+# `WireEvent` boundary. The proxy depends on noodle-domain as a
+# driving adapter — it does NOT host any classifier (that stays
+# downstream per ADR 029 §1).
+noodle-domain.workspace = true
+noodle-tap = { workspace = true, optional = true }
+
+bytes.workspace = true
+futures.workspace = true
+http.workspace = true
+semver = { version = "1", features = ["serde"] }
+serde.workspace = true
+serde_json.workspace = true
+smol_str.workspace = true
+thiserror.workspace = true
+time = { workspace = true, features = ["formatting", "macros", "parsing"] }
+tracing.workspace = true
+
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+rama.workspace = true
+pin-project-lite = "0.2"
+# Cross-platform hostname for the `Machine` envelope field.
+gethostname = "0.5"
+
+[build-dependencies]
+# Minimal compile-time emission of `VERGEN_GIT_SHA` and
+# `VERGEN_BUILD_DATE` env vars for the `CollectorApp` envelope
+# field (ADR 029 §2.4). We use a hand-rolled `build.rs` rather
+# than the `vergen` crate to keep the dependency surface tight.
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["http2", "rustls-tls"] }
+async-stream = "0.3"
+tempfile = "3"
+serde_json.workspace = true
+noodle-tap.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "net", "io-util"] }
+# S19 integration tests use rcgen to build the test enterprise
+# CA + sign CSRs on the stub Vault path.
+rcgen.workspace = true
+x509-parser = "0.16"
+# ADR 049 §9.1 emit-close-path bench compares the legacy 4-byte-scan
+# path against the engine-decoded path. Same scaffolding the
+# noodle-adapters `codec_paths` bench uses (A.7 / 040-post-parity).
+criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"] }
+
+[[bench]]
+name = "emit_close_path"
+harness = false
+
+[lints]
+workspace = true

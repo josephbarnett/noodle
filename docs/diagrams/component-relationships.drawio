@@ -1,0 +1,231 @@
+<mxfile host="65bd71144e">
+    <diagram id="component-relationships" name="Component relationships">
+        <mxGraphModel dx="2758" dy="1710" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="noodle — Component Relationships" style="text;html=1;align=center;verticalAlign=middle;fontSize=23;fontStyle=1" parent="1" vertex="1">
+                    <mxGeometry x="99.19" y="-77" width="700" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="Crates, the components they contain, and the compile-time dependency direction between them." style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontStyle=2;fontColor=#555555" parent="1" vertex="1">
+                    <mxGeometry x="99.19" y="-47" width="700" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="core_box" value="noodle-core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;fontSize=13;fontStyle=1;strokeWidth=2;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="120" y="120" width="340" height="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="core_role" value="Pure types and interfaces.&#xa;No async runtime. No HTTP framework." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#2d4a2d" parent="1" vertex="1">
+                    <mxGeometry x="135" y="150" width="310" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="core_types" value="Types&#xa;NormalizedRequest · NormalizedEvent&#xa;Session · TurnId · Marker · ToolCall&#xa;EventSource · ProviderChunk · AuditEvent" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="140" y="195" width="300" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="core_ifaces" value="Interfaces&#xa;Codec · Transform · RequestDetector&#xa;WireSink · SideEffectSink&#xa;CacheAndRelease · Extractor" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="140" y="285" width="300" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="core_engine" value="Orchestration&#xa;InspectionEngine + builder&#xa;(domain, endpoint, direction) dispatch" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="140" y="375" width="300" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="domain_box" value="noodle-domain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;fontSize=13;fontStyle=1;strokeWidth=2;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="120" y="540" width="340" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="domain_role" value="Agent Protocol content-semantic types.&#xa;Consumed by downstream applications.&#xa;Not on the proxy data path." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#2d4a2d" parent="1" vertex="1">
+                    <mxGeometry x="135" y="570" width="310" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="domain_cats" value="Type families&#xa;Content categories · Capability classes&#xa;Speech acts · Trust levels · Citations&#xa;Reminder subtypes · Output channels&#xa;Task / plan primitives · Envelope metadata" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="140" y="625" width="300" height="115" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_box" value="noodle-adapters" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;fontSize=13;fontStyle=1;strokeWidth=2;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="580" y="120" width="380" height="640" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_role" value="Concrete implementations of noodle-core interfaces.&#xa;One file per codec / transform / detector / sink." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#1f3a5f" parent="1" vertex="1">
+                    <mxGeometry x="595" y="150" width="350" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_codecs" value="Codecs (L0–L5)&#xa;TlsCodec · HttpCodec · SseFrameCodec&#xa;AnthropicCodec · OpenAiCodec · GoogleCodec" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="600" y="195" width="340" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_detectors" value="Detectors&#xa;UserAgentDetector · EndpointDetector&#xa;DomainDetector" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="600" y="285" width="340" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_transforms" value="Transforms&#xa;AttributionInjector · MarkerStripTransform&#xa;HeaderRewriter (slot) · ModelRewriter (slot)&#xa;SensitiveContentRedactor (slot)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="600" y="365" width="340" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_buffer" value="Buffering primitives (ADR 016)&#xa;CacheAndRelease impls · Extractor impls" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="600" y="475" width="340" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_sinks" value="Sinks (side-effect, non-tap)&#xa;SideEffectsJsonlSink · TracingSink&#xa;MultiAuditSink (composite)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="600" y="545" width="340" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_dep" value="Depends on: noodle-core only." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#1f3a5f" parent="1" vertex="1">
+                    <mxGeometry x="595" y="640" width="350" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_dep2" value="Does NOT depend on: rama, tokio, hyper, or any HTTP framework." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#1f3a5f" parent="1" vertex="1">
+                    <mxGeometry x="595" y="660" width="350" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapt_dep3" value="Each adapter is unit-testable in isolation." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#1f3a5f" parent="1" vertex="1">
+                    <mxGeometry x="595" y="680" width="350" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="tap_box" value="noodle-tap" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;fontSize=13;fontStyle=1;strokeWidth=2;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="540" width="360" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="tap_role" value="File-based WireSink implementation.&#xa;Writes tap.jsonl — the single boundary out." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#6b5a1c" parent="1" vertex="1">
+                    <mxGeometry x="1095" y="570" width="330" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="tap_comps" value="Components&#xa;FileWireSink · Rotation policy&#xa;Append framing · Backpressure policy" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="1100" y="615" width="320" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="tap_dep" value="Depends on: noodle-core." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#6b5a1c" parent="1" vertex="1">
+                    <mxGeometry x="1095" y="705" width="330" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="tap_dep2" value="Substitutable: any WireSink can replace it." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#6b5a1c" parent="1" vertex="1">
+                    <mxGeometry x="1095" y="725" width="330" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="proxy_box" value="noodle-proxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;fontSize=13;fontStyle=1;strokeWidth=2;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="120" width="360" height="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="proxy_role" value="Driving adapter. Owns the network runtime.&#xa;The only crate that pulls rama and tokio." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#6b1f1f" parent="1" vertex="1">
+                    <mxGeometry x="1095" y="150" width="330" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="proxy_serve" value="Service stack&#xa;TLS-MITM service · HTTP service&#xa;Forward service · WireLogLayer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="1100" y="195" width="320" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="proxy_setup" value="Composition&#xa;tap_setup · engine wiring&#xa;dispatch table loader · config" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="1100" y="295" width="320" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="proxy_dep" value="Depends on: noodle-core, noodle-adapters, noodle-tap, rama, tokio." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#6b1f1f" parent="1" vertex="1">
+                    <mxGeometry x="1095" y="385" width="330" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="proxy_dep2" value="Composes adapters into a running service." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#6b1f1f" parent="1" vertex="1">
+                    <mxGeometry x="1095" y="405" width="330" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="proxy_dep3" value="Contains no protocol logic of its own." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#6b1f1f" parent="1" vertex="1">
+                    <mxGeometry x="1095" y="425" width="330" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="tproxy_box" value="noodle-macos-tproxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;verticalAlign=top;fontSize=12;fontStyle=1;strokeWidth=2;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="1090" y="-90" width="340" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="tproxy_role" value="macOS transparent-proxy staticlib.&#xa;Apple Network Extension binding.&#xa;Drives traffic into noodle-proxy." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#4a3a52" parent="1" vertex="1">
+                    <mxGeometry x="1105" y="-60" width="310" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="tproxy_dep" value="Depends on: noodle-proxy." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#4a3a52" parent="1" vertex="1">
+                    <mxGeometry x="1105" width="310" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="viewer_box" value="noodle-viewer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;verticalAlign=top;fontSize=12;fontStyle=1;strokeWidth=2;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="99.19" y="828.36" width="380" height="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="viewer_role" value="Operator-facing debug UI.&#xa;Rust backend at crate root; React/Vite frontend under web/." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#4a3a52" parent="1" vertex="1">
+                    <mxGeometry x="114.19" y="858.36" width="350" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="viewer_comps" value="Components&#xa;JsonlTailer · Decode pipeline · UI panels" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;align=left;verticalAlign=top;fontSize=10;spacingLeft=8;spacingTop=6" parent="1" vertex="1">
+                    <mxGeometry x="119.19" y="903.36" width="340" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="viewer_dep" value="&amp;nbsp; &amp;nbsp;Depends on: noodle-core, noodle-domain (for decode types). &lt;br&gt;&amp;nbsp; &amp;nbsp;Reads tap.jsonl at runtime." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontStyle=2;fontColor=#4a3a52" parent="1" vertex="1">
+                    <mxGeometry x="114.19" y="963.36" width="360" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_adapt_core" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;exitX=0.002;exitY=0.237;exitDx=0;exitDy=0;entryX=1;entryY=0.4;entryDx=0;entryDy=0;exitPerimeter=0;" parent="1" source="adapt_box" target="core_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_adapt_core_l" value="implements interfaces from" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=2;fontColor=#444444" parent="e_adapt_core" connectable="0" vertex="1">
+                    <mxGeometry x="-0.1" y="-1" relative="1" as="geometry">
+                        <mxPoint x="2" y="-13" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_proxy_core" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" parent="1" source="proxy_box" target="core_box" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1166" y="67"/>
+                            <mxPoint x="290" y="67"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_proxy_core_l" value="uses types &amp; engine" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=2;fontColor=#444444" parent="e_proxy_core" connectable="0" vertex="1">
+                    <mxGeometry x="-0.05" y="-1" relative="1" as="geometry">
+                        <mxPoint x="-2" y="-12" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_proxy_adapt" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;entryX=0.998;entryY=0.299;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="proxy_box" target="adapt_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_proxy_adapt_l" value="composes adapters" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=2;fontColor=#444444" parent="e_proxy_adapt" connectable="0" vertex="1">
+                    <mxGeometry x="-0.05" y="-1" relative="1" as="geometry">
+                        <mxPoint y="-15" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_proxy_tap" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" parent="1" source="proxy_box" target="tap_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_proxy_tap_l" value="composes" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=2;fontColor=#444444" parent="e_proxy_tap" connectable="0" vertex="1">
+                    <mxGeometry x="0.1" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_tap_core" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" parent="1" source="tap_box" target="core_box" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1260" y="807"/>
+                            <mxPoint x="531" y="807"/>
+                            <mxPoint x="531" y="332"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_tap_core_l" value="implements WireSink" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=2;fontColor=#444444" parent="e_tap_core" connectable="0" vertex="1">
+                    <mxGeometry x="-0.05" y="-1" relative="1" as="geometry">
+                        <mxPoint x="518" y="-17" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_tproxy_proxy" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" parent="1" source="tproxy_box" target="proxy_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_tproxy_proxy_l" value="hosts" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=2;fontColor=#444444" parent="e_tproxy_proxy" connectable="0" vertex="1">
+                    <mxGeometry x="-0.05" y="-1" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_viewer_core" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" parent="1" source="viewer_box" target="core_box" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="498" y="913"/>
+                            <mxPoint x="498" y="405"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_viewer_core_l" value="uses types" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=2;fontColor=#444444" parent="e_viewer_core" connectable="0" vertex="1">
+                    <mxGeometry x="-0.05" y="-1" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_viewer_domain" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" parent="1" source="viewer_box" target="domain_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_viewer_domain_l" value="uses types" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=2;fontColor=#444444" parent="e_viewer_domain" connectable="0" vertex="1">
+                    <mxGeometry x="-0.05" y="-1" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="legend_box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#cccccc;strokeWidth=1" parent="1" vertex="1">
+                    <mxGeometry x="1084" y="832" width="360" height="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_title" value="Legend &amp; rules" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=1;fontColor=#333333" parent="1" vertex="1">
+                    <mxGeometry x="1096" y="838" width="200" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_green" value="Green — pure types and interfaces (no runtime)." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#444444" parent="1" vertex="1">
+                    <mxGeometry x="1096" y="860" width="340" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_blue" value="Blue — adapter implementations (no runtime)." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#444444" parent="1" vertex="1">
+                    <mxGeometry x="1096" y="880" width="340" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_yellow" value="Yellow — boundary sink." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#444444" parent="1" vertex="1">
+                    <mxGeometry x="1096" y="900" width="340" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_red" value="Red — runtime composition (rama, tokio)." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#444444" parent="1" vertex="1">
+                    <mxGeometry x="1096" y="920" width="340" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_purple" value="Purple — driving and operator-facing crates." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#444444" parent="1" vertex="1">
+                    <mxGeometry x="1096" y="940" width="340" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_rule" value="Arrow direction is compile-time dependency: A → B means A depends on B." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#444444" parent="1" vertex="1">
+                    <mxGeometry x="1096" y="970" width="340" height="28" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

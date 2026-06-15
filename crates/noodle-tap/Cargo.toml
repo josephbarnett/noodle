@@ -1,0 +1,40 @@
+[package]
+name = "noodle-tap"
+description = "TAP-format JSONL debugger sink — completely separated from the engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+noodle-core.workspace = true
+
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+smol_str.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# Async writer task
+tokio = { workspace = true, features = ["fs", "io-util", "rt", "sync", "time", "macros"] }
+
+# RFC3339Nano timestamp formatting
+time = { workspace = true, features = ["formatting", "macros"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "process"] }
+# E2E integration test (S12 live-tail through real proxy). Dev-only —
+# noodle-tap remains independent of noodle-proxy in regular builds
+# (the dependency arrow goes proxy → tap in production code).
+noodle-proxy.workspace = true
+noodle-adapters.workspace = true
+noodle-tls.workspace = true
+rama.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,37 @@
+[package]
+name = "noodle-cert-external"
+description = "External (CSR-over-HTTPS) CertMintService adapters for the proxy host — Vault PKI signer today; AWS/Azure/SCEP follow (ADR 034 §2.4; ADR 039 §4 carve-out)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+noodle-core.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+rcgen.workspace = true
+time.workspace = true
+x509-parser = "0.16"
+pem = "3"
+
+# HTTPS client for the Vault PKI signer. rustls + http2 keeps OpenSSL
+# out of the build graph.
+reqwest = { version = "0.12", default-features = false, features = ["http2", "rustls-tls", "json"] }
+tokio = { workspace = true, features = ["macros", "time"] }
+
+[dev-dependencies]
+# Tests use the local CA to validate chain wiring.
+noodle-tls.workspace = true
+noodle-sinks.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "net", "io-util", "fs"] }
+tempfile = "3"
+proptest = "1"
+
+[lints]
+workspace = true
