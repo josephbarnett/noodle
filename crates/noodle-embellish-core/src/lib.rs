@@ -31,6 +31,7 @@
 #![forbid(unsafe_code)]
 
 pub mod brain;
+pub mod context_weight;
 pub mod decoded;
 pub mod mapper;
 pub mod policy;
@@ -38,6 +39,7 @@ pub mod reader;
 pub mod wire_source;
 
 pub use brain::{Brain, BrainObservation, UTILITY_THREAD_ID};
+pub use context_weight::{ContextWeight, measure as measure_context_weight};
 pub use decoded::{DecodedPair, decode_pair};
 pub use mapper::{TelemetryRow, map_decoded_pair, map_pair};
 pub use policy::{
