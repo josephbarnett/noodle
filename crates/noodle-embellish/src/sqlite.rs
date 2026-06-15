@@ -140,6 +140,8 @@ impl SqliteWriter {
         // ADR 052 §5 — turn_id / role / frame_id / parent_frame_id /
         // depth. Same additive pattern.
         ensure_lineage_columns(&self.conn)?;
+        // ADR 056 — context.* weight columns. Same additive pattern.
+        ensure_context_columns(&self.conn)?;
         Ok(())
     }
 
@@ -248,6 +250,16 @@ impl SqliteWriter {
                     row.frame_id,
                     row.parent_frame_id,
                     row.depth,
+                    // ADR 056 context weight block (?71-?78). Facts only;
+                    // cost ratios/dollars are derived at the surface.
+                    row.context_weight.as_ref().map(|c| c.input_tokens),
+                    row.context_weight.as_ref().map(|c| c.cache_read_tokens),
+                    row.context_weight.as_ref().map(|c| c.cache_creation_tokens),
+                    row.context_weight.as_ref().map(|c| c.output_tokens),
+                    row.context_weight.as_ref().map(|c| c.system_bytes),
+                    row.context_weight.as_ref().map(|c| c.tools_bytes),
+                    row.context_weight.as_ref().map(|c| c.tools_count),
+                    row.context_weight.as_ref().map(|c| c.preamble_bytes),
                 ],
             )
             .map_err(SqliteError::Insert)?;
@@ -494,7 +506,13 @@ INSERT OR IGNORE INTO ai_telemetry_v_0_0_2 (
     policy_rule, policy_rationale, policy_surface,
     -- ADR 052 §5 frame-tree lineage; ordered last to keep the
     -- existing numeric param indices stable.
-    turn_id, role, frame_id, parent_frame_id, depth
+    turn_id, role, frame_id, parent_frame_id, depth,
+    -- ADR 056 context weight; appended after lineage to keep prior
+    -- param indices stable.
+    context_input_tokens, context_cache_read_tokens,
+    context_cache_creation_tokens, context_output_tokens,
+    context_system_bytes, context_tools_bytes, context_tools_count,
+    context_preamble_bytes
 ) VALUES (
     ?1, ?2, ?3, ?4, ?5,
     ?6, ?7, ?8, ?9, ?10,
@@ -516,7 +534,8 @@ INSERT OR IGNORE INTO ai_telemetry_v_0_0_2 (
     ?58, ?59,
     ?60, ?61, ?62,
     ?63, ?64, ?65,
-    ?66, ?67, ?68, ?69, ?70
+    ?66, ?67, ?68, ?69, ?70,
+    ?71, ?72, ?73, ?74, ?75, ?76, ?77, ?78
 );
 ";
 
@@ -576,6 +595,27 @@ const LINEAGE_COLUMNS: &[(&str, &str)] = &[
 /// Same shape and tolerance as [`ensure_brain_columns`].
 fn ensure_lineage_columns(conn: &Connection) -> Result<(), SqliteError> {
     ensure_columns(conn, LINEAGE_COLUMNS)
+}
+
+/// ADR 056 — context-weight columns. Vendor-reported token facts plus
+/// request-side structural byte sizes; cost ratios and dollars are
+/// derived at the surface, never stored. Same additive-over-v0.0.2
+/// pattern as brain.*, policy.*, and the lineage block.
+const CONTEXT_COLUMNS: &[(&str, &str)] = &[
+    ("context_input_tokens", "INTEGER"),
+    ("context_cache_read_tokens", "INTEGER"),
+    ("context_cache_creation_tokens", "INTEGER"),
+    ("context_output_tokens", "INTEGER"),
+    ("context_system_bytes", "INTEGER"),
+    ("context_tools_bytes", "INTEGER"),
+    ("context_tools_count", "INTEGER"),
+    ("context_preamble_bytes", "INTEGER"),
+];
+
+/// Idempotent in-place migration for ADR 056 context.* columns. Same
+/// shape and tolerance as [`ensure_brain_columns`].
+fn ensure_context_columns(conn: &Connection) -> Result<(), SqliteError> {
+    ensure_columns(conn, CONTEXT_COLUMNS)
 }
 
 /// Shared scaffold for "add any of these columns that are missing".
@@ -706,6 +746,55 @@ mod tests {
         assert_eq!(status, 200);
         assert_eq!(in_t, 10);
         assert_eq!(out_t, 20);
+    }
+
+    #[test]
+    fn insert_persists_context_weight_columns() {
+        // ADR 056 step 3: the context_* columns round-trip the
+        // measured ContextWeight facts; cost ratios are not stored.
+        let mut writer = SqliteWriter::open_in_memory().unwrap();
+        let mut row = empty_row();
+        row.context_weight = Some(noodle_embellish_core::ContextWeight {
+            input_tokens: 12,
+            cache_read_tokens: 244_329,
+            cache_creation_tokens: 0,
+            output_tokens: 34,
+            system_bytes: 1176,
+            tools_bytes: 6039,
+            tools_count: 47,
+            preamble_bytes: 2611,
+        });
+        let event_id = writer.insert(row).unwrap();
+
+        let (cache_read, tools_count, system_bytes): (i64, i64, i64) = writer
+            .conn()
+            .query_row(
+                "SELECT context_cache_read_tokens, context_tools_count, context_system_bytes \
+                 FROM ai_telemetry_v_0_0_2 WHERE event_id = ?1",
+                params![event_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(cache_read, 244_329);
+        assert_eq!(tools_count, 47);
+        assert_eq!(system_bytes, 1176);
+    }
+
+    #[test]
+    fn insert_leaves_context_columns_null_when_unmeasured() {
+        // No ContextWeight (non-Anthropic / no usage block) → NULL,
+        // exactly as the brain_* columns behave.
+        let mut writer = SqliteWriter::open_in_memory().unwrap();
+        let event_id = writer.insert(empty_row()).unwrap();
+        let cache_read: Option<i64> = writer
+            .conn()
+            .query_row(
+                "SELECT context_cache_read_tokens FROM ai_telemetry_v_0_0_2 WHERE event_id = ?1",
+                params![event_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(cache_read, None);
     }
 
     #[test]
