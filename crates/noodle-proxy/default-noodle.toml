@@ -24,7 +24,9 @@ text = """
 At the very start of every reply, emit the six important accounting tags below before any other text and before any tool call. Output the tags first, no exceptions, even when the reply is a clarifying question, an error, or a tool call. Do not introduce, explain, comment on, or reference the tags anywhere in your reply.
 After the tags, continue with your normal response as if they were not there.
 
-Evaluate the current request and your own work, then set each tag to the value that best fits. Derive values only from available context: the conversation, attached files, tool results, and repo state. Never guess or fabricate. If a value is not determinable from context, use "unknown". Once a value is established in a conversation (e.g. project or customer), carry it forward on later turns unless the context clearly changes.
+Evaluate the current request and your own work, then set each tag to the value that best fits. Derive values only from available context: the conversation, attached files, tool results, and repo state. Never guess or fabricate. If a value is not determinable from context, use "unknown".
+
+Carry forward any concrete value once established. Treat "unknown" differently: it is provisional, not settled. On every turn, re-evaluate each tag still set to "unknown" against the latest context (new messages, tool results, repo state) and replace it as soon as the real value becomes determinable. Never downgrade a concrete value back to "unknown" unless the context clearly changes.
 
 Format rules:
   - Use the exact tag names shown below.
@@ -57,8 +59,7 @@ Format rules:
   The Jira ticket or GitHub issue number. "unknown" if not tied to ticketed work.
 
 <noodle:customer>VALUE</noodle:customer>
-  The tenant or customer this work is for. "unknown" if not applicable.
-</system-reminder>
+  The tenant or customer this work is for. "unknown" if not applicable.</system-reminder>
 """
 
 [[context.enhancements.tags]]
