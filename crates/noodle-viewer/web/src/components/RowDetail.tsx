@@ -104,15 +104,17 @@ export function RowDetail({ pair, onClose, decoded, learned, onJumpTo, contextWe
               <UsagePanel usage={decoded.usage} mode="full" />
             </div>
           )}
-          <EnvelopeInspector envelope={decoded.envelope} />
+          {/* ADR 056: context weight sits right under usage — the two
+              cost lenses (what you spent, what carrying context cost)
+              read together. */}
+          {contextWeight && <ContextWeightPanel weight={contextWeight} />}
         </section>
       )}
 
-      {/* ADR 056: per-round-trip context weight — what it costs to
-          carry the fixed context (system + tools + history) vs the new
-          prompt. Keyed by event_id, so it renders independent of the
-          decoded feed. */}
-      {contextWeight && <ContextWeightPanel weight={contextWeight} />}
+      {/* Envelope — agent/machine/collector identity. Lower priority
+          than usage/context (glanced at, not watched), so it sits just
+          above the raw request. */}
+      {decoded && <EnvelopeInspector envelope={decoded.envelope} />}
 
       <Section
         title="Request"
