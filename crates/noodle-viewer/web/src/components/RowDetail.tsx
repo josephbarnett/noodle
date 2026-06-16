@@ -14,7 +14,7 @@ import { TurnIdBadge } from "./TurnIdBadge";
 import { UsagePanel } from "./UsagePanel";
 import { usePersistedToggle } from "../lib/persistedToggle";
 import type { LearnedRecord } from "../store/events";
-import type { DecodedExchange, Exchange, ExchangePair } from "../types";
+import type { ContextWeight, DecodedExchange, Exchange, ExchangePair } from "../types";
 
 interface Props {
   pair: ExchangePair;
@@ -29,12 +29,15 @@ interface Props {
   /** Optional callback for tool-pairing arrows — jumps to the
    *  paired event_id. */
   onJumpTo?: (eventId: string) => void;
+  /** ADR 056: per-round-trip context weight — carried vs new tokens
+   *  plus structural system/tools/preamble sizes. */
+  contextWeight?: ContextWeight;
 }
 
 const REQ_OPEN_KEY = "noodle-viewer:rowDetail.request.open";
 const RES_OPEN_KEY = "noodle-viewer:rowDetail.response.open";
 
-export function RowDetail({ pair, onClose, decoded, learned, onJumpTo }: Props) {
+export function RowDetail({ pair, onClose, decoded, learned, onJumpTo, contextWeight }: Props) {
   const { request, response } = pair;
   const url = request?.url ?? "—";
   const method = request?.method ?? "—";
@@ -96,14 +99,22 @@ export function RowDetail({ pair, onClose, decoded, learned, onJumpTo }: Props) 
             </div>
           )}
           {decoded.usage && (decoded.usage.tokens || decoded.usage.latency) && (
-            <div className="row-detail-decoded-usage">
-              <h4 className="body-label">usage</h4>
+            <div className="row-detail-decoded-usage stats-card">
+              <h4 className="stats-card-title">Usage Statistics</h4>
               <UsagePanel usage={decoded.usage} mode="full" />
             </div>
           )}
-          <EnvelopeInspector envelope={decoded.envelope} />
+          {/* ADR 056: context weight sits right under usage — the two
+              cost lenses (what you spent, what carrying context cost)
+              read together. */}
+          {contextWeight && <ContextWeightPanel weight={contextWeight} />}
         </section>
       )}
+
+      {/* Envelope — agent/machine/collector identity. Lower priority
+          than usage/context (glanced at, not watched), so it sits just
+          above the raw request. */}
+      {decoded && <EnvelopeInspector envelope={decoded.envelope} />}
 
       <Section
         title="Request"
@@ -198,3 +209,60 @@ function statusClass(s: number): string {
   if (s >= 200) return "ok";
   return "pending";
 }
+
+// ADR 056: per-round-trip context weight. Token counts are vendor
+// facts; *_bytes are request-side structural sizes. The overhead ratio
+// (carried ÷ presented input) is derived here, never stored — it's the
+// share of input you pay to carry context rather than prompt.
+function ContextWeightPanel({ weight: w }: { weight: ContextWeight }) {
+  const carried = w.cache_read_tokens + w.cache_creation_tokens;
+  const presented = w.input_tokens + carried;
+  const overheadPct = presented > 0 ? Math.round((carried / presented) * 100) : 0;
+  const tok = (n: number) => `${n.toLocaleString()} tok`;
+  const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
+  return (
+    <section className="row-detail-context-weight stats-card">
+      <h4 className="stats-card-title">Context Weight</h4>
+      <table className="usage-table stats-table">
+        <tbody>
+          <tr className="stats-row-strong">
+            <th>overhead ratio</th>
+            <td>{overheadPct}% carried</td>
+          </tr>
+          <tr>
+            <th>carried (cache read)</th>
+            <td>{tok(w.cache_read_tokens)}</td>
+          </tr>
+          <tr>
+            <th>created (cache write)</th>
+            <td>{tok(w.cache_creation_tokens)}</td>
+          </tr>
+          <tr>
+            <th>new input</th>
+            <td>{tok(w.input_tokens)}</td>
+          </tr>
+          <tr>
+            <th>output</th>
+            <td>{tok(w.output_tokens)}</td>
+          </tr>
+          <tr>
+            <th>system</th>
+            <td>{kb(w.system_bytes)}</td>
+          </tr>
+          <tr>
+            <th>tools</th>
+            <td>
+              {w.tools_count} · {kb(w.tools_bytes)}
+            </td>
+          </tr>
+          <tr>
+            <th>preamble</th>
+            <td>{kb(w.preamble_bytes)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+

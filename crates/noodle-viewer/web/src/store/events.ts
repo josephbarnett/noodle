@@ -9,6 +9,7 @@
 import type { ParsedResponse, ParseCache } from "./derived/ooda";
 import type {
   BrainObservation,
+  ContextWeight,
   DecodedExchange,
   Exchange,
   ExchangePair,
@@ -203,6 +204,13 @@ export class EventStore {
    *  brain ingest so React detects the change. */
   private brainsSnapshot: ReadonlyMap<string, BrainObservation> = new Map();
 
+  // ─── ADR 056 context weight ──────────────────────────────────
+  /** Map keyed by round-trip `event_id`. Populated by the
+   *  `context_weight` `ServerMsg` the hub emits once a response's
+   *  decoded usage pairs with its request body. Joined to the row by
+   *  `event_id`, exactly like brain observations. */
+  private contextWeightByEventId = new Map<string, ContextWeight>();
+
   // ─── S22: typed DecodedExchange feed (/api/decoded-exchanges) ─
   /** Map keyed by `exchange.event_id`. Holds the LATEST DecodedExchange
    *  for each event_id; request and response records share the
@@ -315,6 +323,11 @@ export class EventStore {
         this.brainsSnapshot = new Map(this.brainsByEventId);
         break;
       }
+      case "context_weight": {
+        // ADR 056 — join to the row by event_id, like brain.
+        this.contextWeightByEventId.set(msg.event_id, msg.weight);
+        break;
+      }
     }
     this.emit();
   }
@@ -402,6 +415,10 @@ export class EventStore {
   /** Single brain observation for a `event_id`, if one has arrived. */
   getBrainFor(eventId: string): BrainObservation | undefined {
     return this.brainsByEventId.get(eventId);
+  }
+  /** ADR 056 — context weight for a `event_id`, if it has arrived. */
+  getContextWeightFor(eventId: string): ContextWeight | undefined {
+    return this.contextWeightByEventId.get(eventId);
   }
   /** List of `event_id`s observed in a given `thread_id`, arrival
    *  order. Drives the per-thread timeline view. */

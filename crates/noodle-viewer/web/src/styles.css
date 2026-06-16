@@ -1705,6 +1705,47 @@ button.danger:hover:not(:disabled) { background: var(--error-soft); }
   margin-top: 0.6rem;
 }
 
+/* ── ADR 056: stat cards (Usage Statistics + Context Weight) ──── */
+.stats-card {
+  margin-top: 0.7rem;
+  padding: 0.55rem 0.7rem 0.65rem;
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.stats-card-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.stats-card .usage-table {
+  width: 100%;
+}
+.stats-table th {
+  padding: 0.12rem 0.5rem 0.12rem 0;
+  white-space: nowrap;
+}
+.stats-table td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding: 0.12rem 0;
+}
+/* The headline metric — the share of input you pay just to carry
+   context. Highlighted so it reads first. */
+.stats-row-strong th {
+  font-weight: 700;
+  color: var(--text);
+}
+.stats-row-strong td {
+  font-weight: 700;
+  color: var(--ok, #4ade80);
+}
+
+/* ── S22: content block tags ────────────────────────────────── */
+
 /* ── S22: content block tags ────────────────────────────────── */
 
 .content-block-tags {

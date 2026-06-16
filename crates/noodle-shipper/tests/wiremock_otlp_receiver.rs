@@ -66,7 +66,15 @@ CREATE TABLE IF NOT EXISTS ai_telemetry_v_0_0_2 (
     role                                TEXT,
     frame_id                            TEXT,
     parent_frame_id                     TEXT,
-    depth                               INTEGER
+    depth                               INTEGER,
+    context_input_tokens                INTEGER,
+    context_cache_read_tokens           INTEGER,
+    context_cache_creation_tokens       INTEGER,
+    context_output_tokens               INTEGER,
+    context_system_bytes                INTEGER,
+    context_tools_bytes                 INTEGER,
+    context_tools_count                 INTEGER,
+    context_preamble_bytes              INTEGER
 );";
 
 fn make_db_with_rows(rows: &[(&str, Option<&str>, Option<&str>)]) -> (TempDir, std::path::PathBuf) {

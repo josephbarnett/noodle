@@ -22,6 +22,7 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 use crate::brain::BrainObservation;
+use crate::context_weight::ContextWeight;
 use crate::decoded::DecodedPair;
 use crate::reader::TapEntryView;
 
@@ -134,6 +135,13 @@ pub struct TelemetryRow {
     /// [`enrich_with_policy`] just before write. `Some(Allow)` is a
     /// distinct signal from `None` — classifier ran, said allow.
     pub policy: Option<crate::policy::PolicyDecision>,
+
+    /// ADR 056 per-round-trip context weight (carried-context tokens,
+    /// structural `system`/`tools` sizes). `None` when the response
+    /// carried no usage block or the pair was not measured; populated
+    /// by [`enrich_with_context_weight`] just before write. Cost
+    /// ratios and dollars are derived at the surface, never stored.
+    pub context_weight: Option<ContextWeight>,
 
     /// Slice 042 AC #5: stamp describing how complete the
     /// correlation + attribution data was at mapping time. Lets
@@ -448,6 +456,7 @@ pub fn map_pair(request: &TapEntryView, response: &TapEntryView) -> Option<Telem
         provider_metadata_json,
         brain: None,
         policy: None,
+        context_weight: None,
         // Without a round-trip join (the `map_pair` legacy entry
         // point), wire-only is the worst we can claim from the
         // marks block alone. The roundtrip-joined paths below
@@ -713,6 +722,7 @@ pub fn map_decoded_pair(pair: &DecodedPair) -> Option<TelemetryRow> {
         provider_metadata_json,
         brain: None,
         policy: None,
+        context_weight: None,
         correlation_quality: CorrelationQuality::classify(has_session, false),
     })
 }
@@ -724,6 +734,21 @@ pub fn map_decoded_pair(pair: &DecodedPair) -> Option<TelemetryRow> {
 pub fn enrich_with_brain(mut row: TelemetryRow, brain: Option<BrainObservation>) -> TelemetryRow {
     if brain.is_some() {
         row.brain = brain;
+    }
+    row
+}
+
+/// ADR 056 enrich step. Stamps the measured [`ContextWeight`] onto the
+/// row's `context_weight` field. Idempotent and `None`-tolerant:
+/// passing `None` returns the row unchanged. The caller measures via
+/// [`crate::context_weight::measure`] over the same [`DecodedPair`].
+#[must_use]
+pub fn enrich_with_context_weight(
+    mut row: TelemetryRow,
+    weight: Option<ContextWeight>,
+) -> TelemetryRow {
+    if weight.is_some() {
+        row.context_weight = weight;
     }
     row
 }

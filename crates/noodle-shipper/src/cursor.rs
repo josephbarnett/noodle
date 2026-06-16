@@ -105,6 +105,18 @@ pub struct RollupsRow {
     pub brain_estimated_window_tokens: Option<i64>,
     pub brain_api_context_management_beta: Option<bool>,
 
+    // ADR 056 context-weight columns. All `Option` — populated only
+    // when the response carried a usage block. Facts only; cost ratios
+    // and dollars are derived at the surface from these.
+    pub context_input_tokens: Option<i64>,
+    pub context_cache_read_tokens: Option<i64>,
+    pub context_cache_creation_tokens: Option<i64>,
+    pub context_output_tokens: Option<i64>,
+    pub context_system_bytes: Option<i64>,
+    pub context_tools_bytes: Option<i64>,
+    pub context_tools_count: Option<i64>,
+    pub context_preamble_bytes: Option<i64>,
+
     // ADR 045 §2.5 Watchtower D2 observe-mode verdict columns. All
     // `Option` — populated only when the embellisher's classifier
     // scored the pair.
@@ -288,7 +300,11 @@ impl RollupsCursor {
                     brain_estimated_window_tokens, brain_api_context_management_beta,
                     policy_decision, policy_mode, policy_risk,
                     policy_rule, policy_rationale, policy_surface,
-                    turn_id, role, frame_id, parent_frame_id, depth
+                    turn_id, role, frame_id, parent_frame_id, depth,
+                    context_input_tokens, context_cache_read_tokens,
+                    context_cache_creation_tokens, context_output_tokens,
+                    context_system_bytes, context_tools_bytes,
+                    context_tools_count, context_preamble_bytes
              FROM ai_telemetry_v_0_0_2
              WHERE event_id IN ({placeholders})
              ORDER BY event_id"
@@ -347,6 +363,14 @@ impl RollupsCursor {
                     frame_id: r.get(42)?,
                     parent_frame_id: r.get(43)?,
                     depth: r.get(44)?,
+                    context_input_tokens: r.get(45)?,
+                    context_cache_read_tokens: r.get(46)?,
+                    context_cache_creation_tokens: r.get(47)?,
+                    context_output_tokens: r.get(48)?,
+                    context_system_bytes: r.get(49)?,
+                    context_tools_bytes: r.get(50)?,
+                    context_tools_count: r.get(51)?,
+                    context_preamble_bytes: r.get(52)?,
                 })
             })
             .map_err(CursorError::Claim)?;
@@ -507,7 +531,15 @@ mod tests {
                 role                                TEXT,
                 frame_id                            TEXT,
                 parent_frame_id                     TEXT,
-                depth                               INTEGER
+                depth                               INTEGER,
+                context_input_tokens                INTEGER,
+                context_cache_read_tokens           INTEGER,
+                context_cache_creation_tokens       INTEGER,
+                context_output_tokens               INTEGER,
+                context_system_bytes                INTEGER,
+                context_tools_bytes                 INTEGER,
+                context_tools_count                 INTEGER,
+                context_preamble_bytes              INTEGER
             );",
         )
         .unwrap();

@@ -93,6 +93,16 @@ pub enum ServerMsg {
         event_id: String,
         observation: noodle_embellish_core::BrainObservation,
     },
+    /// ADR 056 context weight for one completed round trip, keyed by
+    /// the round-trip's `event_id` so the frontend can join it to the
+    /// matching `Exchange`/`DecodedExchange` row. Emitted by
+    /// [`crate::brain_observer::BrainObserver`] from the same paired
+    /// [`noodle_embellish_core::DecodedPair`] the brain observes. Wire
+    /// shape: `{"kind":"context_weight","event_id":"…","weight":{…}}`.
+    ContextWeight {
+        event_id: String,
+        weight: noodle_embellish_core::ContextWeight,
+    },
     Capture(CaptureState),
 }
 

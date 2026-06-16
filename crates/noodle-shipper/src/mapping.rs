@@ -130,6 +130,35 @@ pub fn row_to_otlp_log(row: &RollupsRow) -> Value {
         attrs.insert("gen_ai.frame.depth".into(), kv_int(d));
     }
 
+    // ── ADR 056 context weight ───────────────────────────────────
+    // Facts only; cost ratios/dollars are derived by the consumer.
+    if let Some(t) = row.context_cache_read_tokens {
+        attrs.insert("context.cache_read_tokens".into(), kv_int(t));
+        attrs.insert("gen_ai.usage.cache_read_input_tokens".into(), kv_int(t));
+    }
+    if let Some(t) = row.context_cache_creation_tokens {
+        attrs.insert("context.cache_creation_tokens".into(), kv_int(t));
+        attrs.insert(
+            "gen_ai.usage.cache_creation_input_tokens".into(),
+            kv_int(t),
+        );
+    }
+    if let Some(t) = row.context_input_tokens {
+        attrs.insert("context.input_tokens".into(), kv_int(t));
+    }
+    if let Some(b) = row.context_system_bytes {
+        attrs.insert("context.system_bytes".into(), kv_int(b));
+    }
+    if let Some(b) = row.context_tools_bytes {
+        attrs.insert("context.tools_bytes".into(), kv_int(b));
+    }
+    if let Some(c) = row.context_tools_count {
+        attrs.insert("context.tools_count".into(), kv_int(c));
+    }
+    if let Some(b) = row.context_preamble_bytes {
+        attrs.insert("context.preamble_bytes".into(), kv_int(b));
+    }
+
     // ── credential identity ──────────────────────────────────────
     if let Some(ref p) = row.api_key_prefix {
         attrs.insert("api_key_prefix".into(), kv_str(p));
@@ -508,6 +537,14 @@ mod tests {
             brain_blocks_added: None,
             brain_estimated_window_tokens: None,
             brain_api_context_management_beta: None,
+            context_input_tokens: None,
+            context_cache_read_tokens: None,
+            context_cache_creation_tokens: None,
+            context_output_tokens: None,
+            context_system_bytes: None,
+            context_tools_bytes: None,
+            context_tools_count: None,
+            context_preamble_bytes: None,
             policy_decision: None,
             policy_mode: None,
             policy_risk: None,
