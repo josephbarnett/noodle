@@ -189,6 +189,7 @@ export function App() {
               onClose={() => setSelected(null)}
               decoded={store.getDecodedFor(selectedPair.event_id)}
               learned={store.getLearnedFor(selectedPair.event_id)}
+              contextWeight={store.getContextWeightFor(selectedPair.event_id)}
               onJumpTo={(id) => setSelected(id)}
             />
           </>

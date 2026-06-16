@@ -14,7 +14,7 @@ import { TurnIdBadge } from "./TurnIdBadge";
 import { UsagePanel } from "./UsagePanel";
 import { usePersistedToggle } from "../lib/persistedToggle";
 import type { LearnedRecord } from "../store/events";
-import type { DecodedExchange, Exchange, ExchangePair } from "../types";
+import type { ContextWeight, DecodedExchange, Exchange, ExchangePair } from "../types";
 
 interface Props {
   pair: ExchangePair;
@@ -29,12 +29,15 @@ interface Props {
   /** Optional callback for tool-pairing arrows — jumps to the
    *  paired event_id. */
   onJumpTo?: (eventId: string) => void;
+  /** ADR 056: per-round-trip context weight — carried vs new tokens
+   *  plus structural system/tools/preamble sizes. */
+  contextWeight?: ContextWeight;
 }
 
 const REQ_OPEN_KEY = "noodle-viewer:rowDetail.request.open";
 const RES_OPEN_KEY = "noodle-viewer:rowDetail.response.open";
 
-export function RowDetail({ pair, onClose, decoded, learned, onJumpTo }: Props) {
+export function RowDetail({ pair, onClose, decoded, learned, onJumpTo, contextWeight }: Props) {
   const { request, response } = pair;
   const url = request?.url ?? "—";
   const method = request?.method ?? "—";
@@ -104,6 +107,18 @@ export function RowDetail({ pair, onClose, decoded, learned, onJumpTo }: Props) 
           <EnvelopeInspector envelope={decoded.envelope} />
         </section>
       )}
+
+      {/* ADR 056: per-round-trip context weight — what it costs to
+          carry the fixed context (system + tools + history) vs the new
+          prompt. Keyed by event_id, so it renders independent of the
+          decoded feed. */}
+      {contextWeight && <ContextWeightPanel weight={contextWeight} />}
+
+      {/* ADR 056: per-round-trip context weight — what it costs to
+          carry the fixed context (system + tools + history) vs the new
+          prompt. Keyed by event_id, so it renders independent of the
+          decoded feed. */}
+      {contextWeight && <ContextWeightPanel weight={contextWeight} />}
 
       <Section
         title="Request"
@@ -198,3 +213,42 @@ function statusClass(s: number): string {
   if (s >= 200) return "ok";
   return "pending";
 }
+
+// ADR 056: per-round-trip context weight. Token counts are vendor
+// facts; *_bytes are request-side structural sizes. The overhead ratio
+// (carried ÷ presented input) is derived here, never stored — it's the
+// share of input you pay to carry context rather than prompt.
+function ContextWeightPanel({ weight: w }: { weight: ContextWeight }) {
+  const carried = w.cache_read_tokens + w.cache_creation_tokens;
+  const presented = w.input_tokens + carried;
+  const overheadPct = presented > 0 ? Math.round((carried / presented) * 100) : 0;
+  const tok = (n: number) => n.toLocaleString();
+  const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
+  return (
+    <section className="row-detail-context-weight">
+      <h4 className="body-label">context weight</h4>
+      <dl className="ctx-weight-grid">
+        <dt>carried (cache read)</dt>
+        <dd>{tok(w.cache_read_tokens)} tok</dd>
+        <dt>created (cache write)</dt>
+        <dd>{tok(w.cache_creation_tokens)} tok</dd>
+        <dt>new input</dt>
+        <dd>{tok(w.input_tokens)} tok</dd>
+        <dt>output</dt>
+        <dd>{tok(w.output_tokens)} tok</dd>
+        <dt>overhead ratio</dt>
+        <dd>{overheadPct}% carried</dd>
+        <dt>system</dt>
+        <dd>{kb(w.system_bytes)}</dd>
+        <dt>tools</dt>
+        <dd>
+          {w.tools_count} · {kb(w.tools_bytes)}
+        </dd>
+        <dt>preamble</dt>
+        <dd>{kb(w.preamble_bytes)}</dd>
+      </dl>
+    </section>
+  );
+}
+
+

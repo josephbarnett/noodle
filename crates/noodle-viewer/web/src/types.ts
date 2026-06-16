@@ -120,7 +120,27 @@ export type ServerMsg =
   | ({ kind: "frame" } & Frame)
   | { kind: "side_effect"; event: SideEffectEvent }
   | { kind: "brain"; event_id: string; observation: BrainObservation }
+  | { kind: "context_weight"; event_id: string; weight: ContextWeight }
   | { kind: "capture"; enabled: boolean; file?: string | null };
+
+/**
+ * ADR 056 per-round-trip context weight. Wire shape mirrors
+ * `noodle_embellish_core::ContextWeight`. Joined to an `Exchange` /
+ * `DecodedExchange` row by the matching `event_id` on the `ServerMsg`
+ * `context_weight` event. Token counts are vendor-reported; the
+ * `*_bytes` fields are request-side structural sizes. Cost ratios
+ * (tokens-per-edit, dollars) are derived in the UI, never stored.
+ */
+export interface ContextWeight {
+  input_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  output_tokens: number;
+  system_bytes: number;
+  tools_bytes: number;
+  tools_count: number;
+  preamble_bytes: number;
+}
 
 /**
  * ADR 047 rung 1 brain observation for one completed round-trip.
