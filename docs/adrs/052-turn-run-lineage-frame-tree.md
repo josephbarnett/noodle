@@ -160,14 +160,18 @@ The tree is the **connected component formed by the `tool_use` → `tool_result`
 chain.** Per session maintain: `frames` (id → {parent, depth}), `pending_tu`
 (every unanswered `tool_use.id` → the frame that emitted it), `pending_spawn`
 (each unopened `Task/Agent` spawn → `{prompt_fingerprint, parent_frame}`),
-`root_sig` (the structural signature of the ROOT thread's last request; `None`
-until seeded), and the open turn (`in_turn`, `turn`).
+whether ROOT has been seeded (`root_seeded`), and the open turn (`in_turn`,
+`turn`). **No message-history signature is retained** — see §6.1 for why the
+earlier `root_sig`/`extends_root` mechanism was removed.
 
 This is the **corrected** algorithm. The draft seeded ROOT exactly once (a
 one-shot guard) and opened a turn on *any* ROOT round-trip — which makes the
 2nd user turn in a session impossible (it is misclassified as a side-call), and
-cannot reject a side-call that clones and extends the main thread (suggestion
-mode). The correction is three ordered classifiers plus three predicates.
+cannot reject a side-call that clones the main thread (suggestion mode). The
+correction is three ordered classifiers plus **two** predicates
+(`is_harness_wrapper`, `genuine_user_text`). An earlier revision carried a
+third, `extends_root` (a message-history prefix hash); §6.1 records why it was
+removed — empirically it decides nothing and breaks under compaction.
 
 ### Classifiers (applied in order)
 
@@ -175,19 +179,11 @@ mode). The correction is three ordered classifiers plus three predicates.
 |---|---|---|
 | 1. CHAIN | request answers a pending `tool_use` → the emitting frame | every mid-frame RT carries the `tool_result`; verified RT3–RT6, RT8 (task), RT2–4 (bash), RT7/8/11/13, RT15 (parallel) |
 | 2. SPAWN | first RT of a sub-agent matches a pending `Task/Agent` prompt; consumed on match | three parallel Explore agents separable only by `crates/docs/tools` prompt |
-| 3. ROOT | chain-less, spawn-less RT that is **not a harness wrapper** and either **seeds** ROOT (first turn) or **re-enters** ROOT via thread extension (turn 2..N) | RT1/RT3 seed; RT15 would re-enter but is held by CHAIN; quota/title/monitor/suggestion are wrappers |
-| else | SIDE-CALL | connected to nothing the above accepts; does not touch `root_sig` |
+| 3. ROOT | chain-less, spawn-less RT that is **not a harness wrapper** and carries **genuine user text** — **seeds** ROOT (first turn) or **re-enters** the session's one ROOT (turn 2..N) | RT1/RT3 seed; RT15 would re-enter but is held by CHAIN; quota/title/monitor/suggestion are wrappers |
+| else | SIDE-CALL | connected to nothing the above accepts |
 
 ### Predicates
 
-- **`extends_root(rt)`** — *structural, no system content.* The ROOT thread is
-  the one conversation that grows monotonically: each ROOT request contains the
-  previous ROOT request's `messages` as a prefix. `root_sig` is a hash-chain
-  over the ROOT request's message identities (role + content hash; for tool
-  blocks, the `tool_use`/`tool_result` id). True iff `root_sig` is a prefix of
-  `rt`'s message signature. Positively selects the main thread; rejects
-  standalone side-calls (quota `nmsgs=1`, title `nmsgs=1`, monitor `nmsgs=2` —
-  none extend the thread).
 - **`is_harness_wrapper(rt)`** — *the irreducible content dependency.* The
   trailing user message text matches a known harness template. Verified
   catalog: `mt==1` (quota), leading `<session>` (title-gen), leading
@@ -204,7 +200,7 @@ mode). The correction is three ordered classifiers plus three predicates.
 ### The loop
 
 ```text
-# state: frames, pending_tu, pending_spawn, root_sig=None, in_turn=False, turn=0
+# state: frames, pending_tu, pending_spawn, root_seeded=False, in_turn=False, turn=0
 on round_trip rt (in wire order):
   frame = None
 
@@ -225,20 +221,23 @@ on round_trip rt (in wire order):
           pending_spawn.remove(P); break
 
   # 3. ROOT — seed OR re-enter. One-shot guard removed (the G1 fix).
-  if frame is None and not is_harness_wrapper(rt):
-      if root_sig is None and genuine_user_text(rt):
+  #    Re-entry needs no message signature: there is one ROOT per session,
+  #    so a chain-less, spawn-less, non-wrapper RT with genuine user text
+  #    *is* the ROOT — seed it the first time, re-enter it thereafter.
+  if frame is None and not is_harness_wrapper(rt) and genuine_user_text(rt):
+      if not root_seeded:
           frame = open Frame(id=ROOT, parent=None, depth=0)   # first turn
-      elif root_sig is not None and extends_root(rt):
+          root_seeded = true
+      else:
           frame = ROOT                                        # turn 2..N
 
-  # 4. SIDE-CALL — connected to nothing in the tree; do NOT touch root_sig
+  # 4. SIDE-CALL — connected to nothing in the tree; opens/changes no frame
   if frame is None:
       emit rt as side_call (role=side_call, no turn_id); continue
 
-  # 5. ROOT bookkeeping — keep the thread current; open a turn ONLY on genuine
-  #    new user input (not on any ROOT round-trip)
+  # 5. ROOT bookkeeping — open a turn ONLY on genuine new user input
+  #    (not on any ROOT round-trip). No history signature is computed.
   if frame is ROOT:
-      root_sig = signature(rt.request.messages)
       if not in_turn and genuine_user_text(rt): turn = new Turn(); in_turn = true
   rt.turn = turn
 
@@ -263,15 +262,17 @@ on round_trip rt (in wire order):
 Steps 1, 2, 4, 6, 7 are unchanged from the draft. The correction is:
 
 - **Step 3:** drop the one-shot `ROOT not opened` guard; replace the two inline
-  preamble checks with `is_harness_wrapper`; add the `extends_root` **re-entry**
-  branch (turn 2..N).
-- **Step 5:** persist `root_sig` on every ROOT round-trip; open a turn only when
-  `genuine_user_text(rt)` (not on any ROOT round-trip).
+  preamble checks with `is_harness_wrapper`; re-enter ROOT (turn 2..N) on any
+  chain-less, spawn-less, non-wrapper RT with genuine user text — there is one
+  ROOT per session, so no message signature is needed to recognize it.
+- **Step 5:** open a turn only when `genuine_user_text(rt)` (not on any ROOT
+  round-trip). No `root_sig` is computed or stored.
 
 One sentence: *the draft opens ROOT once and starts a turn on any ROOT
-round-trip; the corrected loop lets ROOT persist and re-enter by structural
-thread-extension, opens a turn only on genuine new user text, and rejects
-thread-extending side-calls via the wrapper catalog.*
+round-trip; the corrected loop lets the session's single ROOT persist and
+re-enter on genuine new user text, opens a turn only then, and rejects
+thread-cloning side-calls via the wrapper catalog — with no message-history
+parse anywhere on the turn path.*
 
 ### Notes
 
@@ -290,13 +291,34 @@ thread-extending side-calls via the wrapper catalog.*
   no such round-trip exists in the corpus (the lone quoter, RT10, arrives after
   its spawn is consumed). So "the order is load-bearing" is unsupported by the
   captures; chain-first is retained as a safe convention, not a proven necessity.
-- **`extends_root` is only consulted for the turn-2 chain-less first RT.** A
-  ROOT *resume* mid-turn (a `tool_result`) is held by CHAIN (step 1) before the
-  ROOT branch runs. On the current corpus, every ROOT landing is a seed or a
-  CHAIN, so the re-entry branch never fires — see §9.
-- **Complexity:** O(1) per round-trip plus the fingerprint check and the
-  `root_sig` prefix compare (O(messages) worst case, amortizable via a rolling
-  hash), bounded by concurrently-unopened spawns.
+- **Turn-2 ROOT re-entry needs no signature.** A ROOT *resume* mid-turn (a
+  `tool_result`) is held by CHAIN (step 1) before the ROOT branch runs; a new
+  user turn lands as chain-less + spawn-less + non-wrapper + genuine-text, which
+  *is* the session's one ROOT. On the current corpus every ROOT landing is a
+  seed or a CHAIN, so the re-entry branch never fires — see §9 (and §6.1).
+- **Complexity:** O(1) per round-trip plus the spawn-fingerprint check, bounded
+  by concurrently-unopened spawns. No per-message hashing on the turn path.
+
+### 6.1 Why `root_sig` / `extends_root` was removed
+
+An earlier revision identified ROOT re-entry with `extends_root` — a hash-chain
+(`root_sig`) over the whole message list, true iff the previous ROOT request's
+messages are a prefix of the current one. The captures retire it on two grounds:
+
+- **It decides nothing.** Across all six captures the deciding classifier is
+  only ever `CHAIN`, `SPAWN`, `ROOT-seed`, or `SIDE` (frequencies in §9).
+  `ext=True` is *computed* 11× and is the *deciding* reason **0×** — every row it
+  touched was already classified by `CHAIN` or `SIDE`.
+- **It breaks under compaction.** It is the only part of the turn path that
+  re-reads message history; when the harness compacts/summarizes, the prefix no
+  longer matches and a continuing ROOT reads as a new thread. Turn tracking that
+  depends on history is fragile by construction.
+
+Re-entry is instead "one ROOT per session + not-a-wrapper + genuine user text"
+(step 3) — current-message-only, therefore compaction-proof. Removing
+`extends_root` is proven safe on the corpus; the simpler rule that inherits its
+job is correct-by-construction but **unvalidated by capture** (no multi-turn
+fixture — §9/§10).
 
 ---
 
@@ -377,7 +399,7 @@ per-RT classifier provenance + predicate toggles), `tools/order_compare.py`
 | `turn_id` stable across the whole recursion; not minted per agent run | both sub-agent captures | ✅ reproduced (within turn 1) |
 | **G3** — suggestion postamble (`[SUGGESTION MODE`) is a thread-extending clone of a real turn; only the wrapper branch keeps it off-turn | `parent-parallel-subagents` RT15/RT16 | ✅ verified (see below) |
 | **Consume-on-match** defeats the prompt-quoting monitor (RT10 quotes the `crates/` spawn) | `parent-parallel-subagents` | ✅ verified — load-bearing (chain-first is **not**, see §6 note) |
-| **G1** — ROOT re-entry across turns (`extends_root` + turn-N opening) | — | ❌ **0 captures; the re-entry branch fires 0×** |
+| **G1** — ROOT re-entry across turns (now: not-a-wrapper + genuine-text; `extends_root` removed, §6.1) | — | ❌ **0 captures; the re-entry branch fires 0×** |
 | FR3/FR5 **across turns** (≥2 user turns in one session) | — | ❌ **unexercised; no multi-turn capture** |
 | **FR4 compactor** — positive side-call signal | `long-session-compaction` | ❌ caught by **fallback only** (`mt=None`, non-streaming); no positive signal; this capture is otherwise excluded from the set above |
 | **Per-session partitioning** (model is per-session, §3/§6) | `long-session-compaction` (2 session ids `790d7283`/`d8df40a6`) | ❌ oracle keeps one global state, never reads `x-claude-code-session-id`; cross-session bug **latent, untested** |
@@ -400,21 +422,25 @@ does. Toggling off **only** the suggestion branch flips RT16 to a false
   catalog, the RT15/RT16 clone, the G3 postamble exclusion, and the
   consume-on-match prompt-quoter defense — is reproduced RT-for-RT on the three
   sub-agent captures (+ the quota fixture).
-- ❌ The **G1 multi-turn correction** (`extends_root`, ROOT re-entry, turn-N
-  opening) is **not** validated on the wire: it fires **0 times**. On a
-  *constructed* two-turn sequence (`tools/probe_second_turn.py`) the draft's
-  one-shot guard demonstrably drops turn-2 to a side-call and the corrected loop
-  fixes it — but a constructed sequence is not the product. The turn-2 path is
-  **correct by construction, unproven by capture.**
+- ❌ The **G1 multi-turn correction** (ROOT re-entry, turn-N opening) is **not**
+  validated on the wire: it fires **0 times**. On a *constructed* two-turn
+  sequence (`tools/probe_second_turn.py`) the draft's one-shot guard demonstrably
+  drops turn-2 to a side-call and the corrected loop fixes it — but a constructed
+  sequence is not the product. The turn-2 path is **correct by construction,
+  unproven by capture.** (`extends_root` is no longer the mechanism — it was
+  removed per §6.1; re-entry is now not-a-wrapper + genuine-text.)
 - ❌ **Per-session scoping** (cross-session partitioning) and the **compactor**
   positive side-call signal are **unexercised** — their only fixture
   (`long-session-compaction`, two session ids) is outside the validated set and
   the oracle has no session partitioning.
-- Note: neither `extends_root` nor chain-first precedence is load-bearing for
-  any *captured* RT. RT15 (the only re-entry candidate) is held by CHAIN; and
-  chain-first vs spawn-first gives 0 differing round-trips given consume-on-match
-  (`tools/order_compare.py`). Both are correct-by-design conventions, not
-  capture-proven necessities.
+- Note: `extends_root` was **removed** (§6.1) — across all six captures the only
+  deciders are `CHAIN` (13), `SIDE` (10), `ROOT-seed` (5), `SPAWN` (4); `ext=True`
+  is computed 11× and decides 0×. Chain-first precedence is likewise not
+  load-bearing: chain-first vs spawn-first gives 0 differing round-trips given
+  consume-on-match (`tools/order_compare.py`). Both were correct-by-design
+  conventions, not capture-proven necessities — `extends_root` is now gone, and
+  the wrapper content-peek (`is_harness_wrapper`) is the one irreducible
+  dependency (suggestion-mode RT16 is byte-identical to a real turn — §9 G3).
 
 The product change (marking-detector rewrite + marks reshape) is gated on this
 replay passing. **The honest scope of §9 is: single-turn, single-session, three
@@ -495,7 +521,7 @@ is a rewrite, not a patch.
 050 (draft, PR #135, not on `main`) decouples the marking store into a pluggable
 in-memory/Redis service. That abstraction — get/put, CAS, fail-open — is
 **independent of the state shape** and survives intact. The only change: the
-stored value is the **frame tree + pending spawns + `root_sig`** (§3/§6), not
+stored value is the **frame tree + pending spawns** (§3/§6), not
 049's `HashMap<Option<SystemHash>, AgentRunState>`. The cross-replica need is
 unchanged (a child's first request must find its parent's pending spawn in
 shared state).
