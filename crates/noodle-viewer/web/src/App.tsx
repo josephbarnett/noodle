@@ -172,6 +172,7 @@ export function App() {
             pairs={pairs}
             parseCache={store.parseCache}
             getMarks={(id) => store.getDecodedFor(id)?.marks ?? null}
+            contextWeights={store.getContextWeights()}
           />
         )}
         {mode === "otlp" && <OtlpMode />}
