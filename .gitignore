@@ -36,3 +36,5 @@ captures/
 
 # Soft-delete bin — files moved here are recoverable locally but not committed.
 /.delete/
+tools/__pycache__/
+tools/__pycache__/
