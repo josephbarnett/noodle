@@ -27,7 +27,8 @@ use noodle_embellish_core::{Brain, ChainClassifier, PolicyClassifier};
 
 use crate::decoded::decode_pair;
 use crate::mapper::{
-    enrich_with_brain, enrich_with_policy, enrich_with_roundtrip, map_decoded_pair,
+    enrich_with_brain, enrich_with_context_weight, enrich_with_policy, enrich_with_roundtrip,
+    map_decoded_pair,
 };
 use crate::reader::{
     ReadError, RoundTripView, TapEntryView, read_roundtrips_jsonl, read_tap_jsonl,
@@ -288,6 +289,12 @@ impl Embellisher {
             let mut row = enrich_with_roundtrip(base_row, roundtrip);
             row = enrich_with_brain(row, brain_obs);
             row = enrich_with_policy(row, policy_obs);
+            // ADR 056 — measure context weight off the same decoded pair
+            // and stamp it. Pure; None when no usage block.
+            row = enrich_with_context_weight(
+                row,
+                noodle_embellish_core::measure_context_weight(&pair),
+            );
             if let Some(id) = event_id_pk {
                 row.event_id = id;
             }
