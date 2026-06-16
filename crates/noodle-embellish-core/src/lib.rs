@@ -39,7 +39,10 @@ pub mod reader;
 pub mod wire_source;
 
 pub use brain::{Brain, BrainObservation, UTILITY_THREAD_ID};
-pub use context_weight::{ContextWeight, measure as measure_context_weight};
+pub use context_weight::{
+    ContextWeight, measure as measure_context_weight,
+    measure_from_parts as measure_context_weight_from_parts,
+};
 pub use decoded::{DecodedPair, decode_pair};
 pub use mapper::{TelemetryRow, map_decoded_pair, map_pair};
 pub use policy::{

@@ -178,8 +178,49 @@ impl HubService {
         let mut rx = source.subscribe();
         let me = self.clone();
         tokio::spawn(async move {
+            // ADR 056 step 5 — pair the request body (system/tools
+            // sizes) with the response's decoded usage by `event_id`,
+            // emitting `ServerMsg::ContextWeight` once the response
+            // arrives. Requests buffer their body; a response computes
+            // from the buffered body + its decoded `usage.tokens`.
+            // Response-before-request yields usage-only (no structural
+            // sizes) — an accepted v1 degradation.
+            let mut cw_req_bodies: std::collections::HashMap<String, serde_json::Value> =
+                std::collections::HashMap::new();
             while let Some(dx) = rx.recv().await {
+                let cw: Option<(String, noodle_embellish_core::ContextWeight)> = {
+                    let event_id = dx.exchange.event_id.clone();
+                    if event_id.is_empty() {
+                        None
+                    } else {
+                        match dx.exchange.direction {
+                            crate::model::Direction::Request => {
+                                if !dx.exchange.body.is_null() {
+                                    cw_req_bodies.insert(event_id, dx.exchange.body.clone());
+                                }
+                                None
+                            }
+                            crate::model::Direction::Response => dx
+                                .usage
+                                .as_ref()
+                                .and_then(|u| u.tokens.as_ref())
+                                .map(|usage| {
+                                    let req_body = cw_req_bodies.remove(&event_id);
+                                    (
+                                        event_id,
+                                        noodle_embellish_core::measure_context_weight_from_parts(
+                                            req_body.as_ref(),
+                                            usage,
+                                        ),
+                                    )
+                                }),
+                        }
+                    }
+                };
                 me.publish_decoded(dx).await;
+                if let Some((event_id, weight)) = cw {
+                    me.publish(ServerMsg::ContextWeight { event_id, weight }).await;
+                }
             }
         });
     }

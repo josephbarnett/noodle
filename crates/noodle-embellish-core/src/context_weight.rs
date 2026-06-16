@@ -69,20 +69,29 @@ impl ContextWeight {
 #[must_use]
 pub fn measure(pair: &DecodedPair) -> Option<ContextWeight> {
     let usage = turn_end_usage(&pair.events)?;
-    let body = pair.request.body();
-    let tools = body.and_then(|b| b.get("tools"));
-    Some(ContextWeight {
+    Some(measure_from_parts(pair.request.body(), usage))
+}
+
+/// Build a [`ContextWeight`] from already-separated parts — the
+/// response's token `usage` and the request body JSON. Used where the
+/// decoded usage and the request body are available without a full
+/// [`DecodedPair`] (e.g. the viewer hub pairs them by `event_id`,
+/// ADR 056 step 5). Pure; never errors.
+#[must_use]
+pub fn measure_from_parts(request_body: Option<&Value>, usage: &TokenUsage) -> ContextWeight {
+    let tools = request_body.and_then(|b| b.get("tools"));
+    ContextWeight {
         input_tokens: usage.input,
         cache_read_tokens: usage.cached_read.unwrap_or(0),
         cache_creation_tokens: usage.cached_creation.unwrap_or(0),
         output_tokens: usage.output,
-        system_bytes: body.map_or(0, system_bytes),
+        system_bytes: request_body.map_or(0, system_bytes),
         tools_bytes: tools.map_or(0, json_bytes),
         tools_count: tools
             .and_then(Value::as_array)
             .map_or(0, |a| a.len() as u32),
-        preamble_bytes: body.map_or(0, preamble_bytes),
-    })
+        preamble_bytes: request_body.map_or(0, preamble_bytes),
+    }
 }
 
 /// The `usage` block carried on the response's `TurnEnd` event, if any.
