@@ -99,20 +99,14 @@ export function RowDetail({ pair, onClose, decoded, learned, onJumpTo, contextWe
             </div>
           )}
           {decoded.usage && (decoded.usage.tokens || decoded.usage.latency) && (
-            <div className="row-detail-decoded-usage">
-              <h4 className="body-label">usage</h4>
+            <div className="row-detail-decoded-usage stats-card">
+              <h4 className="stats-card-title">Usage Statistics</h4>
               <UsagePanel usage={decoded.usage} mode="full" />
             </div>
           )}
           <EnvelopeInspector envelope={decoded.envelope} />
         </section>
       )}
-
-      {/* ADR 056: per-round-trip context weight — what it costs to
-          carry the fixed context (system + tools + history) vs the new
-          prompt. Keyed by event_id, so it renders independent of the
-          decoded feed. */}
-      {contextWeight && <ContextWeightPanel weight={contextWeight} />}
 
       {/* ADR 056: per-round-trip context weight — what it costs to
           carry the fixed context (system + tools + history) vs the new
@@ -222,31 +216,49 @@ function ContextWeightPanel({ weight: w }: { weight: ContextWeight }) {
   const carried = w.cache_read_tokens + w.cache_creation_tokens;
   const presented = w.input_tokens + carried;
   const overheadPct = presented > 0 ? Math.round((carried / presented) * 100) : 0;
-  const tok = (n: number) => n.toLocaleString();
+  const tok = (n: number) => `${n.toLocaleString()} tok`;
   const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
   return (
-    <section className="row-detail-context-weight">
-      <h4 className="body-label">context weight</h4>
-      <dl className="ctx-weight-grid">
-        <dt>carried (cache read)</dt>
-        <dd>{tok(w.cache_read_tokens)} tok</dd>
-        <dt>created (cache write)</dt>
-        <dd>{tok(w.cache_creation_tokens)} tok</dd>
-        <dt>new input</dt>
-        <dd>{tok(w.input_tokens)} tok</dd>
-        <dt>output</dt>
-        <dd>{tok(w.output_tokens)} tok</dd>
-        <dt>overhead ratio</dt>
-        <dd>{overheadPct}% carried</dd>
-        <dt>system</dt>
-        <dd>{kb(w.system_bytes)}</dd>
-        <dt>tools</dt>
-        <dd>
-          {w.tools_count} · {kb(w.tools_bytes)}
-        </dd>
-        <dt>preamble</dt>
-        <dd>{kb(w.preamble_bytes)}</dd>
-      </dl>
+    <section className="row-detail-context-weight stats-card">
+      <h4 className="stats-card-title">Context Weight</h4>
+      <table className="usage-table stats-table">
+        <tbody>
+          <tr className="stats-row-strong">
+            <th>overhead ratio</th>
+            <td>{overheadPct}% carried</td>
+          </tr>
+          <tr>
+            <th>carried (cache read)</th>
+            <td>{tok(w.cache_read_tokens)}</td>
+          </tr>
+          <tr>
+            <th>created (cache write)</th>
+            <td>{tok(w.cache_creation_tokens)}</td>
+          </tr>
+          <tr>
+            <th>new input</th>
+            <td>{tok(w.input_tokens)}</td>
+          </tr>
+          <tr>
+            <th>output</th>
+            <td>{tok(w.output_tokens)}</td>
+          </tr>
+          <tr>
+            <th>system</th>
+            <td>{kb(w.system_bytes)}</td>
+          </tr>
+          <tr>
+            <th>tools</th>
+            <td>
+              {w.tools_count} · {kb(w.tools_bytes)}
+            </td>
+          </tr>
+          <tr>
+            <th>preamble</th>
+            <td>{kb(w.preamble_bytes)}</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
   );
 }
