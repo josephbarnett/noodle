@@ -57,6 +57,7 @@ impl ContextWeight {
     /// Share of presented input that is carried context, in `[0, 1]`.
     /// `None` when nothing was presented (avoids 0/0).
     #[must_use]
+    #[allow(clippy::cast_precision_loss)] // token-count ratio; f64 precision is ample
     pub fn overhead_ratio(&self) -> Option<f64> {
         let total = self.presented_input_tokens();
         (total > 0).then(|| self.carried_tokens() as f64 / total as f64)
@@ -78,6 +79,7 @@ pub fn measure(pair: &DecodedPair) -> Option<ContextWeight> {
 /// [`DecodedPair`] (e.g. the viewer hub pairs them by `event_id`,
 /// ADR 056 step 5). Pure; never errors.
 #[must_use]
+#[allow(clippy::cast_possible_truncation)] // tools_count: a request never carries 4B+ tools
 pub fn measure_from_parts(request_body: Option<&Value>, usage: &TokenUsage) -> ContextWeight {
     let tools = request_body.and_then(|b| b.get("tools"));
     ContextWeight {
@@ -167,7 +169,7 @@ mod tests {
     }
 
     /// A response carrying a usage block with cache accounting — the
-    /// shape the proxy writes (real capture observed cache_read up to
+    /// shape the proxy writes (real capture observed `cache_read` up to
     /// 244,329 tokens per round trip).
     fn anthropic_response_with_cache() -> TapEntryView {
         TapEntryView::from_value(json!({
@@ -182,7 +184,7 @@ mod tests {
             "usage": { "tokens": {
                 "input_tokens": 12,
                 "output_tokens": 34,
-                "cache_read_input_tokens": 244329,
+                "cache_read_input_tokens": 244_329,
                 "cache_creation_input_tokens": 0
             } }
         }))
@@ -203,8 +205,11 @@ mod tests {
 
     #[test]
     fn measures_vendor_tokens_including_cache() {
-        let w = measure(&decode_pair(anthropic_request(), anthropic_response_with_cache()))
-            .expect("usage present → Some");
+        let w = measure(&decode_pair(
+            anthropic_request(),
+            anthropic_response_with_cache(),
+        ))
+        .expect("usage present → Some");
         assert_eq!(w.input_tokens, 12);
         assert_eq!(w.output_tokens, 34);
         assert_eq!(w.cache_read_tokens, 244_329);
@@ -213,8 +218,11 @@ mod tests {
 
     #[test]
     fn measures_structural_sizes() {
-        let w = measure(&decode_pair(anthropic_request(), anthropic_response_with_cache()))
-            .unwrap();
+        let w = measure(&decode_pair(
+            anthropic_request(),
+            anthropic_response_with_cache(),
+        ))
+        .unwrap();
         assert!(w.system_bytes > 0, "system measured");
         assert_eq!(w.tools_count, 2);
         assert!(w.tools_bytes > 0, "tools serialized size measured");
@@ -223,8 +231,11 @@ mod tests {
 
     #[test]
     fn overhead_ratio_dominated_by_carried_context() {
-        let w = measure(&decode_pair(anthropic_request(), anthropic_response_with_cache()))
-            .unwrap();
+        let w = measure(&decode_pair(
+            anthropic_request(),
+            anthropic_response_with_cache(),
+        ))
+        .unwrap();
         // 244329 carried / (12 + 244329) presented ≈ 0.99995
         let ratio = w.overhead_ratio().expect("input presented");
         assert!(ratio > 0.999, "carried context dominates: {ratio}");
@@ -234,7 +245,10 @@ mod tests {
     #[test]
     fn no_usage_block_yields_none() {
         let pair = decode_pair(anthropic_request(), anthropic_response_no_usage());
-        assert!(measure(&pair).is_none(), "no usage → None (columns stay NULL)");
+        assert!(
+            measure(&pair).is_none(),
+            "no usage → None (columns stay NULL)"
+        );
     }
 
     #[test]

@@ -219,7 +219,8 @@ impl HubService {
                 };
                 me.publish_decoded(dx).await;
                 if let Some((event_id, weight)) = cw {
-                    me.publish(ServerMsg::ContextWeight { event_id, weight }).await;
+                    me.publish(ServerMsg::ContextWeight { event_id, weight })
+                        .await;
                 }
             }
         });

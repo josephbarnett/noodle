@@ -205,9 +205,7 @@ impl TransparentProxyHandler for NoodleTransparentProxyHandler {
         _exec: Executor,
         _meta: TransparentProxyFlowMeta,
     ) -> impl Future<
-        Output = FlowAction<
-            impl rama::Service<apple_ne::UdpFlow, Output = (), Error = Infallible>,
-        >,
+        Output = FlowAction<impl rama::Service<apple_ne::UdpFlow, Output = (), Error = Infallible>>,
     > + Send
     + '_ {
         // UDP stays passthrough in iteration 3. Iteration 4 will
@@ -231,10 +229,7 @@ impl rama::Service<apple_ne::UdpFlow> for NoopUdpService {
     type Output = ();
     type Error = Infallible;
 
-    async fn serve(
-        &self,
-        _req: apple_ne::UdpFlow,
-    ) -> Result<Self::Output, Self::Error> {
+    async fn serve(&self, _req: apple_ne::UdpFlow) -> Result<Self::Output, Self::Error> {
         unreachable!("NoopUdpService should never be invoked while UDP is passthrough");
     }
 }

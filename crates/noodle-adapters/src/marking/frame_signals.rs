@@ -142,9 +142,16 @@ mod tests {
 
     #[test]
     fn spawn_prompt_fingerprint_is_name_free() {
-        let spawn = response_tool_use("Agent", "toolu_a", &serde_json::json!({"prompt": "List crates/"}));
+        let spawn = response_tool_use(
+            "Agent",
+            "toolu_a",
+            &serde_json::json!({"prompt": "List crates/"}),
+        );
         assert_eq!(spawn.prompt_sha256, Some(sha256_hex("List crates/")));
         let lower = response_tool_use("task", "toolu_b", &serde_json::json!({"prompt": "x"}));
-        assert!(lower.prompt_sha256.is_some(), "name-free: lowercase `task` too");
+        assert!(
+            lower.prompt_sha256.is_some(),
+            "name-free: lowercase `task` too"
+        );
     }
 }

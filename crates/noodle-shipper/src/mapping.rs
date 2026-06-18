@@ -138,10 +138,7 @@ pub fn row_to_otlp_log(row: &RollupsRow) -> Value {
     }
     if let Some(t) = row.context_cache_creation_tokens {
         attrs.insert("context.cache_creation_tokens".into(), kv_int(t));
-        attrs.insert(
-            "gen_ai.usage.cache_creation_input_tokens".into(),
-            kv_int(t),
-        );
+        attrs.insert("gen_ai.usage.cache_creation_input_tokens".into(), kv_int(t));
     }
     if let Some(t) = row.context_input_tokens {
         attrs.insert("context.input_tokens".into(), kv_int(t));

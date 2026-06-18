@@ -4,7 +4,7 @@
 //! and the request body in isolation: no cross-request state, no
 //! message-history hashing. Frame identity is read straight off the wire
 //! (`x-claude-code-agent-id` for Claude Code, `x-session-id` /
-//! `x-parent-session-id` for OpenCode), which is what lets §6 correlation run
+//! `x-parent-session-id` for `OpenCode`), which is what lets §6 correlation run
 //! server-side and replaces the `extends_root` / `message_sig` chain.
 //!
 //! This lands beside [`super::frame_tree`]; the stateful detector is unchanged.
@@ -34,9 +34,9 @@ pub struct FrameHeaders {
     pub cc_session_id: Option<String>,
     /// `x-claude-code-agent-id` — present only on a Claude Code sub-agent
     pub cc_agent_id: Option<String>,
-    /// `x-session-id` — OpenCode frame id (its frame *is* a session)
+    /// `x-session-id` — `OpenCode` frame id (its frame *is* a session)
     pub oc_session_id: Option<String>,
-    /// `x-parent-session-id` — OpenCode parent frame, absent at the root
+    /// `x-parent-session-id` — `OpenCode` parent frame, absent at the root
     pub oc_parent_session_id: Option<String>,
 }
 
@@ -46,14 +46,14 @@ pub struct FrameHeaders {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RequestRecord {
     pub client: CaptureClient,
-    /// Top-level grouping. `None` for OpenCode at the edge — the server derives
+    /// Top-level grouping. `None` for `OpenCode` at the edge — the server derives
     /// it from the root frame of the parent chain (§5).
     pub session_id: Option<String>,
     /// The agent/thread this RT belongs to. `MAIN` for the Claude Code main
-    /// frame; the agent id for a sub-agent; the session id for OpenCode.
+    /// frame; the agent id for a sub-agent; the session id for `OpenCode`.
     pub frame_id: String,
     /// The declared parent frame. `MAIN` for a CC sub-agent (the CC wire can't
-    /// express deeper nesting); the parent session for OpenCode; `None` at root.
+    /// express deeper nesting); the parent session for `OpenCode`; `None` at root.
     pub parent_frame_id: Option<String>,
     /// Intra-frame chain link to the prior RT (`diagnostics.previous_message_id`).
     pub prev_message_id: Option<String>,
@@ -148,7 +148,7 @@ pub fn request_record(h: &FrameHeaders, body: &[u8]) -> RequestRecord {
 
     let max_tokens = v.get("max_tokens").and_then(Value::as_u64);
     let side_call = matches!(max_tokens, Some(mt) if mt <= 1)
-        || trailing.as_deref().map(is_side_call_text).unwrap_or(false);
+        || trailing.as_deref().is_some_and(is_side_call_text);
 
     RequestRecord {
         client,
@@ -250,18 +250,19 @@ pub fn response_record(sse: &[u8]) -> ResponseRecord {
                     tool_idx.insert(idx, inline);
                 }
             }
-            Some("content_block_delta") => {
-                if v.get("delta").and_then(|d| d.get("type")).and_then(Value::as_str)
-                    == Some("input_json_delta")
-                {
-                    let idx = v.get("index").and_then(Value::as_u64).unwrap_or(0);
-                    let frag = v
-                        .get("delta")
-                        .and_then(|d| d.get("partial_json"))
-                        .and_then(Value::as_str)
-                        .unwrap_or("");
-                    partial.entry(idx).or_default().push_str(frag);
-                }
+            Some("content_block_delta")
+                if v.get("delta")
+                    .and_then(|d| d.get("type"))
+                    .and_then(Value::as_str)
+                    == Some("input_json_delta") =>
+            {
+                let idx = v.get("index").and_then(Value::as_u64).unwrap_or(0);
+                let frag = v
+                    .get("delta")
+                    .and_then(|d| d.get("partial_json"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                partial.entry(idx).or_default().push_str(frag);
             }
             _ => {}
         }
@@ -373,8 +374,20 @@ mod tests {
             cc_session_id: Some("s".into()),
             ..Default::default()
         };
-        assert!(request_record(&h, br#"{"max_tokens":1,"messages":[{"role":"user","content":"x"}]}"#).side_call);
-        assert!(request_record(&h, br#"{"messages":[{"role":"user","content":"<transcript>\nhi"}]}"#).side_call);
+        assert!(
+            request_record(
+                &h,
+                br#"{"max_tokens":1,"messages":[{"role":"user","content":"x"}]}"#
+            )
+            .side_call
+        );
+        assert!(
+            request_record(
+                &h,
+                br#"{"messages":[{"role":"user","content":"<transcript>\nhi"}]}"#
+            )
+            .side_call
+        );
         assert!(request_record(&h, br#"{"messages":[{"role":"user","content":"The user stepped away and is coming back. Recap"}]}"#).side_call);
     }
 
@@ -441,7 +454,11 @@ data: {"type":"message_stop"}
             stop_reason: Some("end_turn".into()),
             this_message_id: Some("msg_1".into()),
             spawn_fps: vec!["fp1".into(), "fp2".into()],
-            tokens: Tokens { input: 5, output: 3, ..Default::default() },
+            tokens: Tokens {
+                input: 5,
+                output: 3,
+                ..Default::default()
+            },
         };
         let rec = CaptureRecord::assemble(req, resp);
         assert_eq!(rec.frame_id, "MAIN");

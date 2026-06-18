@@ -8,7 +8,7 @@
 //!   client-agnostic mapping (frame=session, `x-parent-session-id` → root
 //!   session) feeding the same detector via `FrameTreeRegistry`.
 //!
-//! Each request JSON carries a `_link` block (thread, stop_reason) and a
+//! Each request JSON carries a `_link` block (thread, `stop_reason`) and a
 //! `headers` object; the `index.md` in each dir is the golden frame tree.
 
 use std::collections::BTreeSet;
@@ -36,7 +36,7 @@ fn header<'a>(headers: &'a Value, key: &str) -> Option<&'a str> {
 
 fn request_files(dir: &PathBuf) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("read {dir:?}: {e}"))
+        .unwrap_or_else(|e| panic!("read {}: {e}", dir.display()))
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| {
             p.file_name()
@@ -160,8 +160,16 @@ fn opencode_multi_prompt_nests_subagents_in_their_turns() {
 
     // Sub-agents inherit their spawning turn (rows are 0-based; seq is 1-based).
     let turn = |i: usize| rows[i].clone();
-    assert_eq!(turn(4), turn(3), "subagent_1 (seq5) shares main rt3's turn (seq4)");
+    assert_eq!(
+        turn(4),
+        turn(3),
+        "subagent_1 (seq5) shares main rt3's turn (seq4)"
+    );
     assert_eq!(turn(16), turn(3), "main rt4 (seq17) is still rt3's turn");
-    assert_eq!(turn(18), turn(17), "subagent_2 (seq19) shares main rt5's turn (seq18)");
+    assert_eq!(
+        turn(18),
+        turn(17),
+        "subagent_2 (seq19) shares main rt5's turn (seq18)"
+    );
     assert_eq!(turn(26), turn(17), "main rt6 (seq27) is still rt5's turn");
 }

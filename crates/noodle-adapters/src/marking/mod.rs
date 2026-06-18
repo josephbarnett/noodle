@@ -25,4 +25,4 @@ pub use frame_tree::{
     ResponseSignals, RoundTripSignals, ToolUse,
 };
 pub use in_memory_store::InMemoryMarkingStore;
-pub use record::{request_record, CaptureClient, FrameHeaders, RequestRecord};
+pub use record::{CaptureClient, FrameHeaders, RequestRecord, request_record};

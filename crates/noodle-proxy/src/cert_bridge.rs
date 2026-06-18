@@ -41,11 +41,7 @@ use noodle_core::{CertMintService, LeafRequest, MintError};
 use noodle_tls::LocalCertMintService;
 use noodle_tls::ca::Ca;
 use rama::tls::boring::{
-    core::{
-        error::ErrorStack,
-        pkey::PKey,
-        x509::X509,
-    },
+    core::{error::ErrorStack, pkey::PKey, x509::X509},
     proxy::cert_issuer::{BoringMitmCertIssuer, MitmIssuedCert},
 };
 use rama::utils::collections::NonEmptyVec;
@@ -120,10 +116,7 @@ where
 {
     type Error = CertBridgeError;
 
-    async fn issue_mitm_x509_cert(
-        &self,
-        server_cert: X509,
-    ) -> Result<MitmIssuedCert, Self::Error> {
+    async fn issue_mitm_x509_cert(&self, server_cert: X509) -> Result<MitmIssuedCert, Self::Error> {
         let request = leaf_request_from_upstream(&server_cert);
         let minted = self.service.mint_leaf(request).await?;
 
