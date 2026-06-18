@@ -23,11 +23,13 @@
 pub mod cursor;
 pub mod exporter;
 pub mod mapping;
+pub mod otel_genai;
 pub mod shipper;
 
 pub use cursor::{ClaimedBatch, DeliveryStatus, RollupsCursor, RollupsRow};
 pub use exporter::{ExportError, ExportResult, OtlpExporter, Transport};
 pub use mapping::row_to_otlp_log;
+pub use otel_genai::{agent_span, chat_span, CorrelatedRoundTrip, GenAiSpan, Role};
 pub use shipper::{Shipper, ShipperConfig, ShipperStats};
 
 /// The retry cap above which rows are moved to `'poison'` and parked.
