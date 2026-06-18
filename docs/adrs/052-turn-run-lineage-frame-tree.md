@@ -1,552 +1,672 @@
-# ADR 052 — Turn, agent run, and lineage: the per-session `tool_use` frame tree
+# Turn & Frame Correlation
 
-**Status:** Proposed — architecture/design requirements. This is the single,
-canonical, **self-contained** ADR 052.
+The collector attributes every token of spend to the unit a human pays for: one **turn** (a user prompt and all work done to answer it, including every sub-agent it spawned). The mechanism is two-stage and content-free:
 
-**Supersedes the identity + turn model of:** ADR 028 §1.1–§4 and ADR 049
-§5–§6.
-**Grounded on** five mitmproxy captures read with `mitmdump 12.2.3`:
-`captures/max/parent-bash-loop.mitm`, `parent-task-subagent.mitm` (sequential,
-one sub-agent), `parent-parallel-subagents.mitm` (three concurrent sub-agents,
-re-recorded 2026-06-13 on `claude-opus-4-8`), `quota-and-title.mitm`, and
-`long-session-compaction.mitm`. Every requirement traces to an observed wire
-fact, reproduced by the standalone replay tools in `tools/` (§9); nothing is
-inferred from prompt content. The algorithm's verified scope and its **unproven
-branches** are stated plainly in §9 — do not read past it.
+- **Edge (capture side, §5):** each round trip is reduced, statelessly, to one content-free
+  record — ids, fingerprints, counts, `stop_reason` — in a consistent form regardless of
+  which AI client produced it.
+- **Server (correlation, §6):** those records are reassembled into the
+  `session → turn → frame → round-trip` tree, and the derived correlation tags
+  (`turn_id`, `frame`, `parent`, `depth`) are back-propagated onto every round trip so
+  cost rolls up by turn.
 
----
+Both stages are presented in this document. §7 demonstrates capture and correlation against mitmproxy captures of two clients — Claude Code (sequential, three parallel sub-agents, bash loop, quota/title) and OpenCode (multi-prompt with parallel sub-agents).
 
-## 1. Why this exists
-
-Turn and parent/child tracking is the foundation of noodle: token rollup
-**by turn** and attribution land on the wrong unit unless we can say, with
-certainty, "these round-trips are one turn" and "this run is the child of
-that run." The captures show two facts the shipped model gets wrong:
-
-- **The shipped turn boundary is per agent run.** It mints a new `turn_id`
-  whenever an agent run returns a terminal `stop_reason`. So a sub-agent's
-  `end_turn` (an inner *return*) starts a spurious new turn.
-- **The shipped run identity is the prompt content.** Three parallel
-  sub-agents of the same type are byte-identical in everything but their spawn
-  prompt, so content keying **merges three runs into one.**
-
-The wire is a **stack** scoped to one session, and — because Claude Code
-dispatches sub-agents in parallel — that stack is really a **tree** of
-agent-run frames, each frame identified by the `tool_use.id` that spawned it,
-routed by the spawn prompt.
+This document covers techniques for _**stateless HTTP traffic capture correlation**_ — and how round trips are assembled into a conversation (e.g. session → turn → frame) tree. Turn activity tracking is a separate document.
 
 ---
 
-## 2. Current design — reviewed
+## 1. The problem
 
-| Element | Shipped (ADR 028/049) | Verdict |
-|---|---|---|
-| Identity of an agent run | the request's prompt content | **wrong** — collides for parallel same-type agents |
-| `turn_id` minting | per agent-run slot, on that run's terminal `stop_reason` | **wrong** — an inner sub-agent return mints a false turn |
-| Lineage | `pending_children` + spawn-prompt fingerprint | **keep the fingerprint**, drop the slot map |
-| Stamping | proxy edge, one wire pass, onto `tap.jsonl` marks | **keep** — proxy is the single source of truth |
-| Marks fields | `session_id, turn_id, agent_run_id, parent_{session,turn,agent_run,tool_use}_id` | **reshape** (see §5) |
-| Viewer | re-derives the tree client-side (`ooda.ts`) in parallel with the proxy marks | **wrong** — two sources; viewer must render, not derive |
+Our goal is to expose ROI for AI spend. The first step is accounting for AI spend, attribute every token to the **turn** that incurred it and identifying the activity within that turn. 
 
-What survives: the proxy-edge single-pass stamping, the spawn-prompt
-fingerprint, and the `tool_result` pairing already decoded on the response.
-What changes: the **identity** (→ `tool_use.id`), the **turn boundary** (→ the
-top-level terminal), the **shape** (slot map → frame tree), and the **viewer**
-(derive → render).
+On the wire a turn is a tree of HTTP round trips: the model dispatches sub-agents (often in parallel) that each run their own conversation before returning. Turn boundaries and agent identity are not labeled uniformly, and the data differs by client (the agent application). For example, claude-code sends an explicit continuation pointer and buries the prompt under harness wrappers, while opencode sends per-frame session headers and a clean prompt — and each names its spawn tool differently. A correlation that hardcodes one client's vocabulary mis-groups every other client, orphaning sub-agent cost and undercounting turns.
+
+This design _avoids two failure modes_: **content-as-identity** (hashing a system prompt as run identity collapses parallel same-type sub-agents) and **client-vocabulary hardcoding** (a fixed spawn-tool name misses clients that spawn under another name). It _correlates on structure and explicit identity that each client exposes, normalized to one form._
 
 ---
 
-## 3. The model (validated on the wire)
+## 2. Glossary
+
+| Term | Definition |
+|---|---|
+| Round trip | One HTTP request/response exchange with the provider. The atomic unit of capture, of usage, and of correlation. |
+| Session | One client↔provider conversation. The outermost grouping. |
+| Turn | One user prompt and every round trip done to answer it, across every frame it triggers. The unit of cost attribution. |
+| Frame | One agent run — the main agent or one sub-agent. A turn contains one or more frames. |
+| Record | The content-free per-round-trip output of the edge (§5): ids, fingerprints, counts, `stop_reason`. Carries no prompt or response text. |
+| Tag | A correlation field the server derives and back-propagates onto each round trip: `turn_id`, `frame_id`, `parent_frame_id`, `depth`, `role`. |
+| Side call | A round trip driven by no user prompt (quota, title-gen, monitor). Off-tree; belongs to no turn. |
+
+---
+
+## 3. Domain model and invariants
+
+A session is one conversation. Each user prompt opens a turn. To answer it, the agent makes HTTP round trips to the LLM, and may spawn sub-agents and tools that make their own round trips before returning. The Observer (the proxy) is in-path and sees every round trip — but as a flat, interleaved stream: when sub-agents run in parallel, their round trips intermingle on the wire.
 
 ```mermaid
-flowchart TD
-    SID["session_id (one stack)"] --> ROOT["ROOT frame = the prompt (depth 0, the main agent)"]
-    ROOT -->|tool_use Task/Agent id=A → push sibling| A["frame A (sub-agent)"]
-    ROOT -->|tool_use Task/Agent id=B → push sibling| B["frame B (sub-agent)"]
-    ROOT -->|tool_use Task/Agent id=C → push sibling| C["frame C (sub-agent)"]
-    A -->|nested spawn| A1["frame (grandchild)"]
-    SID -.->|spawned by no tool_use| X["SideCall (quota / title / security-monitor / suggestion / compactor)"]
-    ROOT -.tool_use Bash/Read.-> ROOT
-    A -.tool_use Bash/Read.-> A
+sequenceDiagram
+      participant U as User
+      participant A as Agent
+      participant O as Observer
+      participant L as LLM
+      note over O: records each round trip as it passes — flat, in wire order
+
+      rect rgb(238,242,255)
+      note over U,L: TURN 1 — one user prompt → one turn_id
+          U->>A: prompt
+          rect rgb(219,234,254)
+          note over A,L: main frame (depth 0)
+          A->>L: main · RT1
+          L-->>A: tool_use — spawns sub-agent 1 and sub-agent 2
+          end
+
+          par sub-agent 1 and sub-agent 2 run concurrently
+              rect rgb(220,252,231)
+              note over A,L: sub-agent 1 frame (depth 1)
+              A->>L: s1 · RT1
+              L-->>A: tool_use
+              A->>L: s1 · RT2
+              L-->>A: end_turn → frame returns
+              end
+          and
+              rect rgb(254,243,199)
+              note over A,L: sub-agent 2 frame (depth 1)
+              A->>L: s2 · RT1
+              L-->>A: end_turn → frame returns
+              end
+          end
+
+          rect rgb(219,234,254)
+          note over A,L: main frame resumes
+          A->>L: main · RT2
+          L-->>A: end_turn → turn closes
+          end
+          A-->>U: answer
+      end
+
+      note over U,L: TURN 2 — next user prompt → new turn_id …
 ```
 
-- **Session** (`x-claude-code-session-id`) is the stack's container.
-- **Frame** = one agent run. Its identity is the spawning **`tool_use.id`**
-  (`ROOT` for the prompt). A frame is never identified by prompt content.
-- **Push** = a response emits `tool_use(name ∈ {Task, Agent})`. **N such blocks
-  in one response open N sibling frames** under the emitter — not an N-deep
-  chain (the parallel capture proves siblings, not nesting).
-- **Route** = a sub-agent's round-trip is assigned to its frame by matching its
-  first-request text blocks to a pending spawn's `tool_use.input.prompt`. This
-  is the **only** signal that separates parallel same-type siblings
-  (`parent-parallel-subagents`: three `Explore` agents, separable only by
-  `crates/` vs `docs/adrs/` vs `tools/`).
-- **Pop** = the emitter's `tool_result` for the spawning `tool_use.id`. Tool
-  recursion (`Bash`/`Read`) pushes and pops within its own caller and never
-  changes the frame.
-- **Turn** = one user prompt and the model's complete response: the whole
-  recursion from a depth-0 genuine-user round-trip until the **depth-0
-  (top-level) terminal `stop_reason`**. Inner agents' `end_turn`s are returns,
-  not turn ends. (`parent-task-subagent`: RT1→RT8 is one turn;
-  `parent-parallel-subagents`: RT3→RT15 is one turn.)
-- **Side-call** = a round-trip that is neither a tree round-trip (CHAIN/SPAWN)
-  nor a genuine main-thread round-trip. Off-tree; not an agent run; not part of
-  any turn. Two kinds, both observed: **preamble** (quota, title-gen — appear
-  before ROOT, do not extend the main thread) and **postamble** (security
-  monitor, suggestion-mode — may even *extend* the main thread; see §6/§9-G3).
+Notice the intermingling: both sub-agents' first round trips go out before either returns, and the responses come back interleaved. The Observer cannot tell the tree from arrival order alone. Correlation reassembles that flat stream into the turn tree:
+
+```
+    session
+       |
+       +-- turn 1 (prompt)
+       |     |
+       |     +-- main RT1        (spawns sub-agent 1 and 2)
+       |     |
+       |     +-- sub-agent 1
+       |     |     |
+       |     |     +-- RT1
+       |     |     +-- RT2
+       |     |
+       |     +-- sub-agent 2
+       |     |     |
+       |     |     +-- RT1
+       |     |
+       |     +-- main RT2         (turn end)
+       |
+       +-- turn 2 (prompt) ...
+```
+Invariants — what must always hold, regardless of client:
+
+- Parallel same-type sub-agents are distinct frames. Three reviewers spawned at once are three frames, not one.
+- A turn ends when the main agent stops with end_turn and nothing is pending; a tool_use stop (including a spawn) continues it. A sub-agent's own end_turn is its return, not the turn's end.
+- A turn's cost is the sum of usage over every round trip sharing its turn_id. A side call (quota, title-gen — no user prompt) belongs to no turn.
+- Usage never changes once recorded.
 
 ---
 
-## 4. Functional requirements
+## 4. Architecture
 
-**FR1 — Frame identity.** Stamp every `/v1/messages` round-trip with the
-`tool_use.id` of the frame it belongs to (`ROOT` for the main agent), and the
-parent frame's id. Identity is the `tool_use.id` only.
+```mermaid
+flowchart LR
+  subgraph EDGE["PROXY EDGE — stateless, per round trip (§5)"]
+    REQ["request side<br/>headers (client / session / frame / parent ids),<br/>opening prompt → open_fp"]
+    RESP["response side<br/>message id, stop_reason, usage,<br/>spawned prompts → spawn_fps"]
+    REQ --> EX["extractor<br/>content-free per-RT record"]
+    RESP --> EX
+    EX --> DB[("local DB")]
+    DB --> SHIP["shipper<br/>format writer"]
+  end
+  subgraph SERVER["SERVER SIDE — correlation (§6)"]
+    API["API ingest"] --> Q[("queue")]
+    Q --> S1[("store<br/>raw round trips")]
+    S1 --> CORR["correlate<br/>chain order · spawn edges · segment turns (Steps 1–5)"]
+    CORR --> S2[("store<br/>frame tree + turns")]
+    S2 --> BP["back-propagate tags<br/>turn_id · frame · parent · depth · role"]
+    BP --> S3[("store<br/>tagged round trips")]
+    S3 --> RU["group + rollup usage"]
+  end
+  SHIP --> API
+```
 
-**FR2 — Parallel siblings.** N agent spawns in one response produce N sibling
-frames under the emitter. Their round-trips, however interleaved on the wire,
-are each routed to the correct sibling by spawn-prompt fingerprint.
+**Edge (§5):** a per-client **extractor** reduces one round trip to a content-free record,
+attaches locally-known business context, persists to the local DB, and ships. **The edge
+holds no per-session state** — every field is computed from the single round trip in
+isolation. There is no local grouping, no turn windowing, no finalization.
 
-**FR3 — Turn = top-level span.** A turn opens at a depth-0 round-trip that
-carries genuine new user input and closes at the next depth-0 terminal
-`stop_reason`. Every round-trip in the recursion between — including all nested
-sub-agents — carries that one `turn_id`. Inner returns never close or open a
-turn. **A session has N turns for N user prompts** (the draft's one-shot ROOT
-seed was wrong; see §6).
+**Server (§6):** ingests records, orders them per session, reconstructs the frame tree and
+segments turns *from the records*, derives the correlation tags and back-propagates them
+onto each round trip, then groups and rolls up. Correlation lives server-side because it is
+the heuristic, evolving, client-shared part — centralizing it lets it change without a
+fleet redeploy.
 
-**FR4 — Side-call classification.** A round-trip that is neither a tree
-round-trip nor a genuine main-thread round-trip is a side-call: role
-`side_call`, no `turn_id`, no place in the tree. (quota, title-gen,
-security-monitor, suggestion-mode, compactor.)
+| Concern | Where |
+|---|---|
+| Per-round-trip identity (session, frame, declared parent), content-free signals, `stop_reason` | edge extractor |
+| Local business context (cwd, git branch, user) | edge |
+| Local persistence + shipping | edge (DB, shipper) |
+| Order by session; reconstruct frame tree (chain + spawn edges); segment turns | server |
+| Derive + back-propagate tags (`turn_id`, `depth`, `role`) onto each round trip | server |
+| Group by turn/frame, rollup, business-context allocation | server |
 
-**FR5 — Token rollup by turn and by frame.** Per-round-trip token usage must
-roll up two ways: `GROUP BY turn_id` (the user-facing cost of one turn, summing
-every sub-agent inside it) and `GROUP BY frame_id` (cost per agent run).
-Side-calls roll up separately and never inflate a turn.
+Consequence: the edge is stateless, so the failure modes of stateful local grouping (a
+finalization race, a cursor wedge) cannot occur here — they were artifacts of doing server
+work at the edge.
 
-**FR6 — Single source of truth.** The proxy computes the tree on the wire and
-stamps authoritative marks. Downstream (sqlite, OTLP, viewer) **renders** those
-marks; no consumer re-derives turn/run/lineage.
+**Restart robustness follows directly.** The linkage on a round trip is not the proxy's
+state — it is the *client's* continuity, reflected on the wire (the client keeps sending the
+same `session_id`, agent header, and message chain whether or not the proxy is running). The
+proxy only copies that linkage onto each round trip. So an upgrade or crash — even
+**mid-turn** — has nothing to corrupt: no open-turn or session state to lose, and a round
+trip captured after the restart still carries its full linkage and attaches to the right
+turn and frame. What a restart costs is **completeness, never correlation**: round trips
+during the down window are not captured (fail-open), so that turn is undercounted, and if
+the turn's *opening prompt* fell in the gap the server may mis-bound it.
+
+### Edge handlers — the request↔response bridge
+
+The MITM library (go-mitmproxy) fires two hooks per flow: a **request hook** and a
+**response hook**. In each, the codecs and extractors resolved for the cell run as a
+chain — they are the source of the record's fields. One record spans both hooks, so the
+edge bridges them:
+
+- **Request hook:** the request chain produces the request-side signals (identity,
+  `tool_result` ids, user-text fingerprints, wrapper / genuine-text, open time), held in
+  per-flow state **keyed by the flow id**.
+- **Response hook** (stream end / completion): the response chain produces the
+  response-side signals (`tool_use`s, spawns, `stop_reason`, usage), then reloads the
+  request-side state by flow id and assembles the one record.
+
+So request→response bridging is required, and the flow id is the only join key. This
+per-flow context is the edge's *one* piece of transient state — it lives for the flow and
+is dropped the moment the record is emitted.
+
+**Broken pipe during the response.** A response that dies mid-stream completes with no
+terminal `stop_reason`. The record still emits (marked incomplete) with an empty
+`stop_reason`, treated as *non-terminal* — so the turn stays open and the next terminal
+round trip closes it (a dropped tail under-counts, never mis-correlates). If the response
+hook never fires at all, the per-flow bridge state is reclaimed by an idle sweep so an
+abandoned flow can't leak.
 
 ---
 
-## 5. Data contract — marks per round-trip
+## 5. Capture-side record
 
-```
-marks {
-  session_id        : string         # the stack container
-  role              : main | sub_agent | side_call
-  frame_id          : string         # the spawning tool_use.id; "ROOT" for main; own id for side_call
-  parent_frame_id   : string?        # the frame that spawned this one; null for ROOT and side_call
-  depth             : int            # 0 = main; 1+ = sub-agent nesting
-  turn_id           : string?        # the top-level turn this RT belongs to; null for side_call
-}
+The edge emits one content-free record per `/v1/messages` round trip. Every field is derived
+from that single request/response pair — no cross-round-trip state. The record carries ids,
+fingerprints, counts, and enums only; never prompt or response text, headers, or secrets. The
+server (§6) reconstructs the tree from these records alone.
+
+Each value originates in a request header, the request body, the response (SSE stream or its
+message envelope), or is assigned by the extractor.
+
+| Field | Role in correlation | Claude Code source | OpenCode source |
+|---|---|---|---|
+| `wire_seq` | Capture order; tiebreaker and last-resort ordering | Extractor-assigned monotonic counter | Extractor-assigned monotonic counter |
+| `rt_uid` | Globally unique RT id (`<run>_seq_<n>`), stable across re-runs and merged files | Extractor-assigned (run token + `wire_seq`) | Extractor-assigned (run token + `wire_seq`) |
+| `client` | Selects the per-client interpretation | Header family `x-claude-code-*` | Header family `x-session-id` |
+| `session_id` | Top-level grouping | Header `x-claude-code-session-id` | `null` — not on the wire; server derives it from the root frame of the parent chain |
+| `frame_id` | Identifies the agent/thread this RT belongs to | Header `x-claude-code-agent-id` (absent ⟹ `MAIN`) | Header `x-session-id` |
+| `parent_frame_id` | Declares the parent frame | `MAIN` when an agent id is present, else `null` (CC wire can't express deeper nesting) | Header `x-parent-session-id` (or `null` at root) |
+| `prev_message_id` | Intra-frame chain link to the prior RT | Request body `diagnostics.previous_message_id` | `null` (OpenCode does not set it; server orders by `wire_seq`) |
+| `this_message_id` | Chain target — what the next RT's `prev_message_id` points at | Response message `id` (`msg_…`) | Response message `id` (`msg_…`) |
+| `stop_reason` | Turn segmentation (`end_turn` closes a turn; `tool_use` continues it) | Response, last `stop_reason` | Response, last `stop_reason` |
+| `open_fp` | Child→parent match key — fingerprint of this RT's opening prompt; `null` on continuations | `sha256[:12]` of the last user message's leading text | `sha256[:12]` of the last user message's leading text |
+| `spawn_fps` | Parent→child match keys — fingerprint per sub-agent prompt this RT spawned | Per `tool_use` block carrying a `prompt`, reassembled from the SSE `input_json_delta` stream | Same: per spawn-shaped `tool_use` prompt in the SSE |
+| `n_spawn` | Spawn count (`len(spawn_fps)`); marks the spawning RT | Derived from `spawn_fps` | Derived from `spawn_fps` |
+| `tokens` | Per-RT usage (`{in, out}`) | Response usage, last `input_tokens` / `output_tokens` | Response usage, last `input_tokens` / `output_tokens` |
+| `activity` | Business-context classification of the work, for cost attribution by activity (controlled vocabulary: `feature-development`, `debugging`, `code-review`, …). A **context enhancement** — derived, not on the wire. | Classified by the collector | Classified by the collector |
+
+A record (OpenCode, the opening round trip of a turn — wire-derived fields only, no enhancement):
+
+```json
+{
+    "wire_seq": 1,
+    "rt_uid": "742db5cc_seq_1",
+    "client": "opencode",
+    "session_id": null,
+    "frame_id": "ses_12eb57857ffecgvQUSmmb7TQJF",
+    "parent_frame_id": null,
+    "prev_message_id": null,
+    "this_message_id": "msg_01AdhAhyDPJ6cgE9a7BnnbaK",
+    "stop_reason": "tool_use",
+    "open_fp": "65dc127a0093",
+    "spawn_fps": [],
+    "n_spawn": 0,
+    "tokens": {"in": 2, "out": 99}}
 ```
 
-- `agent_run_id` is **replaced by** `frame_id` (= the `tool_use.id`).
-- The four `parent_*` fields collapse to `parent_frame_id` (the parent is a
-  frame in the same session; cross-session parents are out of scope — none
-  observed).
-- `turn_id` is stable across the **entire** recursion of one turn, not per
-  agent run.
-- Token usage already stamped per round-trip (`usage.tokens.*`) is the rollup
-  input for FR5; no change to its shape.
+**Notes**
+- **MANY Values Omitted for Brevity** - the focus of this document is the capture technique and data which allows correlation
+- **Frame identity is header-driven.** Claude Code keys the frame on the agent id and the
+  session on a separate header; OpenCode collapses the two — its frame id *is* a session id,
+  and the tree's session is the root of the parent chain, so the edge leaves `session_id`
+  null and the server fills it in.
+- **Parentage differs in expressiveness.** OpenCode states the parent frame directly
+  (`x-parent-session-id`), so arbitrary nesting reconstructs. Claude Code exposes only the
+  child's own agent id, so the honest reading is "spawned by main"; deeper nesting is not on
+  the CC wire.
+- **The fingerprint is the spawn-edge join.** A child's `open_fp` is matched against a parent
+  RT's `spawn_fps`. This needs the spawned prompt and the child's first user message to be
+  byte-identical. Claude Code wraps the spawned prompt, so the match does not fire and the
+  server falls back to the parent frame's last spawning RT; the fingerprint refines *which*
+  RT only when it matches. OpenCode behaves the same, with `x-parent-session-id` as the
+  parent-frame fallback.
+- **Context enhancements are derived, not wire-read.** `activity` is not in the request or
+  response — the collector classifies the turn's work into a controlled vocabulary and stamps
+  it. It stays content-free (a single enum value), so it does not change the §8 contract. The
+  offline test tool omits it; the production extractor adds it.
 
 ---
 
-## 6. Reconstruction algorithm (proxy-side, on the wire, in order)
+## 6. Server-side correlation
 
-The tree is the **connected component formed by the `tool_use` → `tool_result`
-chain.** Per session maintain: `frames` (id → {parent, depth}), `pending_tu`
-(every unanswered `tool_use.id` → the frame that emitted it), `pending_spawn`
-(each unopened `Task/Agent` spawn → `{prompt_fingerprint, parent_frame}`),
-whether ROOT has been seeded (`root_seeded`), and the open turn (`in_turn`,
-`turn`). **No message-history signature is retained** — see §6.1 for why the
-earlier `root_sig`/`extends_root` mechanism was removed.
+Correlation is a pure function of the records — no bodies, no headers, no wall-clock. It
+reconstructs the `session → turn → frame → round-trip` tree and assigns every round trip a
+deterministic order. The reference implementation is `tools/tree_side.py`; the SQL below
+mirrors it.
 
-This is the **corrected** algorithm. The draft seeded ROOT exactly once (a
-one-shot guard) and opened a turn on *any* ROOT round-trip — which makes the
-2nd user turn in a session impossible (it is misclassified as a side-call), and
-cannot reject a side-call that clones the main thread (suggestion mode). The
-correction is three ordered classifiers plus **two** predicates
-(`is_harness_wrapper`, `genuine_user_text`). An earlier revision carried a
-third, `extends_root` (a message-history prefix hash); §6.1 records why it was
-removed — empirically it decides nothing and breaks under compaction.
+### Input shape
 
-### Classifiers (applied in order)
+One row per round trip, plus a child table flattening `spawn_fps` (the columns the algorithm
+needs — `rt_uid` and `tokens` ride along but aren't used for ordering):
 
-| order | classifier | wire basis |
+```sql
+CREATE TABLE rt (
+  wire_seq        INTEGER PRIMARY KEY,  -- capture order
+  client          TEXT,                 -- 'claude-code' | 'opencode'
+  session_id      TEXT,                 -- CC session; NULL for OpenCode
+  frame_id        TEXT,                 -- 'MAIN' for the CC main frame
+  parent_frame_id TEXT,                 -- 'MAIN' for a CC subagent; OC parent session; NULL at the root
+  prev_message_id TEXT,                 -- CC chain link (OC leaves this NULL)
+  this_message_id TEXT,
+  stop_reason     TEXT,                 -- 'end_turn' | 'tool_use' | ...
+  open_fp         TEXT,                 -- fingerprint of this RT's opening prompt; NULL on a continuation
+  n_spawn         INTEGER               -- number of sub-agents this RT spawned
+);
+CREATE TABLE rt_spawn (                 -- one row per spawned sub-agent prompt
+  wire_seq INTEGER REFERENCES rt(wire_seq),
+  spawn_fp TEXT
+);
+```
+
+### Step 1 — Frame keys
+
+A frame is one agent/thread. Namespace its key by session so two Claude Code sessions in one
+batch (both with a `MAIN` frame) don't merge. OpenCode frame ids are session ids, already
+globally unique, so they live under a single `·` namespace; a record's parent key is built in
+the same namespace.
+
+```sql
+CREATE VIEW rt_keyed AS
+SELECT *,
+       coalesce(session_id,'·') || '::' || frame_id AS frame_key,
+       CASE WHEN parent_frame_id IS NOT NULL
+            THEN coalesce(session_id,'·') || '::' || parent_frame_id END AS parent_key
+FROM rt;
+```
+
+### Step 2 — Order within each frame
+
+Round trips happen in capture order, so `wire_seq` ascending within a frame is the
+intra-frame order for both clients:
+
+```sql
+chain AS (
+  SELECT frame_key, wire_seq, stop_reason, open_fp, parent_key, n_spawn,
+         row_number() OVER (PARTITION BY frame_key ORDER BY wire_seq) - 1 AS intra
+  FROM rt_keyed
+)
+```
+
+Refinement (Claude Code): to stay correct under reordering or merged captures, follow the
+`prev_message_id → this_message_id` chain instead of raw `wire_seq`. OpenCode does not set
+`previous_message_id`, so it always uses the `wire_seq` order above.
+
+### Step 3 — Resolve spawn edges
+
+Each non-root frame links to the round trip that spawned it. The parent frame comes from the
+child's declared `parent_key`. The spawning RT within that frame is found by matching the
+child's opening fingerprint (`open_fp`, from its first round trip) against a parent RT's
+`spawn_fp`. When that doesn't match — Claude Code wraps the spawned prompt, so the
+fingerprints never line up — fall back to the parent frame's last spawning RT, then its first.
+
+```sql
+head AS (   -- the opening round trip of each frame
+  SELECT frame_key, open_fp, parent_key FROM chain WHERE intra = 0
+),
+edges AS (
+  SELECT h.frame_key AS child_key, h.parent_key AS parent_key,
+    COALESCE(
+      (SELECT s.wire_seq FROM rt_spawn s JOIN rt_keyed pr ON pr.wire_seq = s.wire_seq
+         WHERE pr.frame_key = h.parent_key AND s.spawn_fp = h.open_fp LIMIT 1),
+      (SELECT pr.wire_seq FROM rt_keyed pr
+         WHERE pr.frame_key = h.parent_key AND pr.n_spawn > 0
+         ORDER BY pr.wire_seq DESC LIMIT 1),
+      (SELECT pr.wire_seq FROM rt_keyed pr
+         WHERE pr.frame_key = h.parent_key ORDER BY pr.wire_seq ASC LIMIT 1)
+    ) AS spawner_wire_seq
+  FROM head h WHERE h.parent_key IS NOT NULL
+)
+```
+
+### Step 4 — Roots
+
+A root is a frame that is no one's child. Each root anchors one session (its `session_id` for
+Claude Code, or its own frame id for OpenCode).
+
+```sql
+roots AS (SELECT frame_key FROM rt_keyed EXCEPT SELECT child_key FROM edges)
+```
+
+### Step 5 — Segment turns
+
+Within a root frame, a `stop_reason = 'end_turn'` closes a turn; `tool_use` continues it. A
+round trip's turn number is the count of `end_turn`s strictly before it, plus one. (Sub-agent
+frames inherit the turn of the round trip that spawned them; they are not segmented.)
+
+```sql
+turns AS (
+  SELECT wire_seq,
+         1 + COALESCE(
+           SUM(CASE WHEN stop_reason = 'end_turn' THEN 1 ELSE 0 END)
+             OVER (PARTITION BY frame_key ORDER BY intra
+                   ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS turn_no
+  FROM chain WHERE frame_key IN (SELECT frame_key FROM roots)
+)
+```
+
+### Step 6 — Depth-first ordering
+
+The tree is laid out depth-first: a frame's round trips in intra order, and immediately after
+the round trip that spawned a child frame, that child's whole block (recursively). This is
+encoded as a sort path — fixed-width, dot-separated components down the tree — so a plain
+lexicographic sort yields the global order. A parent RT's path is a prefix of its children's,
+so it always sorts ahead of them and before its own next round trip.
+
+```sql
+WITH edge_ranked AS (   -- order sibling frames spawned at the same RT
+  SELECT child_key, parent_key, spawner_wire_seq,
+         row_number() OVER (PARTITION BY spawner_wire_seq ORDER BY child_key) - 1 AS sib_rank
+  FROM edges
+),
+frame_path(frame_key, path) AS (
+  SELECT frame_key, '' FROM roots
+  UNION ALL
+  SELECT er.child_key,
+         fp.path || printf('%06d.', sp.intra) || printf('%03d.', er.sib_rank)
+  FROM edge_ranked er
+  JOIN frame_path fp ON fp.frame_key = er.parent_key
+  JOIN chain sp      ON sp.wire_seq = er.spawner_wire_seq AND sp.frame_key = er.parent_key
+)
+SELECT
+  row_number() OVER (ORDER BY fp.path || printf('%06d', c.intra)) AS global_seq,
+  (SELECT turn_no FROM turns t WHERE t.wire_seq = c.wire_seq)     AS turn,
+  c.frame_key, c.intra, c.wire_seq, c.stop_reason
+FROM chain c
+JOIN frame_path fp ON fp.frame_key = c.frame_key
+ORDER BY fp.path || printf('%06d', c.intra);
+```
+
+`global_seq` + `turn` + `frame_key` are the tags back-propagated onto each round trip
+(§4 diagram); grouping and rollup are then a plain aggregation over fully-tagged rows.
+
+### Properties and limits
+
+- **Pure and replayable.** The ordering depends only on the records; re-running over the same
+  input is identical, which makes it a consistency check.
+- **Fingerprint is best-effort.** The `open_fp ∈ spawn_fps` join gives exact spawn attribution
+  only when the spawned prompt reaches the sub-agent byte-identical. Under Claude Code's prompt
+  wrapping it does not, so attribution falls back to the parent frame's last spawning RT —
+  correct when a turn spawns from a single round trip, ambiguous if one frame spawns from
+  several. Fingerprinting the *unwrapped* prompt on both sides is what makes the exact match
+  fire.
+- **Claude Code nesting is one level.** The CC wire exposes only a child's own agent id, so
+  deeper trees flatten to main. OpenCode's `x-parent-session-id` reconstructs arbitrary depth.
+
+---
+
+## 7. Validation
+
+Reconstructed with `tools/capture_side.py` → `tools/tree_side.py` over real captures:
+
+| Claim | Capture | Evidence |
 |---|---|---|
-| 1. CHAIN | request answers a pending `tool_use` → the emitting frame | every mid-frame RT carries the `tool_result`; verified RT3–RT6, RT8 (task), RT2–4 (bash), RT7/8/11/13, RT15 (parallel) |
-| 2. SPAWN | first RT of a sub-agent matches a pending `Task/Agent` prompt; consumed on match | three parallel Explore agents separable only by `crates/docs/tools` prompt |
-| 3. ROOT | chain-less, spawn-less RT that is **not a harness wrapper** and carries **genuine user text** — **seeds** ROOT (first turn) or **re-enters** the session's one ROOT (turn 2..N) | RT1/RT3 seed; RT15 would re-enter but is held by CHAIN; quota/title/monitor/suggestion are wrappers |
-| else | SIDE-CALL | connected to nothing the above accepts |
+| Frame identity is explicit on Claude Code | parent-task-subagent, parent-parallel-subagents | `x-claude-code-agent-id` absent on main, constant within each sub-agent, distinct across (1 and 3 sub-agents); tree reconstructs to a single root |
+| Frame + explicit parent on OpenCode | opencode-multi-prompt | `x-session-id` distinct per frame; `x-parent-session-id` points each sub-agent at main; frame counts match (main 7, subs 12 / 4 / 4) |
+| Turn windowing without a pointer | opencode-multi-prompt | no `previous_message_id`; `stop_reason` segments 27 round trips into 4 turns; sub-agents nest under the turn that spawned them |
+| Spawn name is not universal | OpenCode | spawn tool is `task` (lowercase), not `Task`/`Agent` — detection must be name-free |
 
-### Predicates
+**Not yet verified:** Claude Code's parent edge for *nested* (depth-2) sub-agents; identical
+concurrent prompts; the unwrapped-prompt fingerprint match firing on Claude Code.
 
-- **`is_harness_wrapper(rt)`** — *the irreducible content dependency.* The
-  trailing user message text matches a known harness template. Verified
-  catalog: `mt==1` (quota), leading `<session>` (title-gen), leading
-  `<transcript>` (security-monitor), leading `[SUGGESTION MODE` (suggestion).
-  Required because the suggestion-mode call is otherwise a byte-identical,
-  thread-extending clone of a real turn (§9-G3). This single predicate does
-  **double duty**: the preamble exclusion the draft did inline
-  (`max_tokens!=1`, `<session>`) *and* the new postamble cases.
-- **`genuine_user_text(rt)`** — true if any trailing-user text block is
-  non-empty and not a wrapper prefix. Scans **all** trailing-user text blocks
-  because a real prompt is often preceded by a `<system-reminder>` block (RT3
-  proves this).
+---
 
-### The loop
+## 8. Security
 
-```text
-# state: frames, pending_tu, pending_spawn, root_seeded=False, in_turn=False, turn=0
-on round_trip rt (in wire order):
-  frame = None
+The edge emits **content-free** records only: ids, prompt **fingerprints** (sha256 prefix),
+counts, and stop reasons — no prompt or response text. Prompt text is read transiently to
+fingerprint it, never persisted or shipped. Consistent with [003](003_data-security.md).
+Captured `.mitm` artifacts carry credentials (`x-api-key`); the export tooling redacts them by
+default.
 
-  # 1. CHAIN FIRST — answers a pending tree tool_use → the emitting frame.
-  #    (a Bash result → same frame; a sub-agent's tool_result → the parent
-  #    frame resumes / pops the child)
-  answered = [tu for tu in rt.request.tool_result_ids if tu in pending_tu]
-  if answered: frame = pending_tu[answered[0]]
+---
 
-  # 2. OPEN a new sub-agent — fingerprint applies only here and is CONSUMED on
-  #    match. A child's first request carries its spawn prompt and no
-  #    tool_result. Consuming the spawn means a later side-call that merely
-  #    QUOTES the prompt cannot claim the already-open frame.
-  if frame is None:
-      for P in pending_spawn where P.fingerprint in rt.request.user_text:
-          frame = open Frame(id=P.tool_use_id, parent=P.parent_frame,
-                             depth=P.parent.depth + 1)
-          pending_spawn.remove(P); break
+## 9. Boundaries
 
-  # 3. ROOT — seed OR re-enter. One-shot guard removed (the G1 fix).
-  #    Re-entry needs no message signature: there is one ROOT per session,
-  #    so a chain-less, spawn-less, non-wrapper RT with genuine user text
-  #    *is* the ROOT — seed it the first time, re-enter it thereafter.
-  if frame is None and not is_harness_wrapper(rt) and genuine_user_text(rt):
-      if not root_seeded:
-          frame = open Frame(id=ROOT, parent=None, depth=0)   # first turn
-          root_seeded = true
-      else:
-          frame = ROOT                                        # turn 2..N
+- **Supersedes** the session/agent-run/turn correlation of
+  [011](011_round-trip-records-and-correlation.md) and the finality clause of
+  [015](015_inject-extract-architecture.md). 011's round-trip-record schema, sinks, and SQLite
+  layout remain authoritative.
+- **Builds on** [009](009_codec-dispatch-architecture.md) — the per-client extractor is a codec
+  in the dispatch sense — and [003](003_data-security.md) for the content-free contract.
+- **Out of scope:** business-context allocation and the delivery cadence (named in §4, detailed
+  elsewhere).
 
-  # 4. SIDE-CALL — connected to nothing in the tree; opens/changes no frame
-  if frame is None:
-      emit rt as side_call (role=side_call, no turn_id); continue
+---
 
-  # 5. ROOT bookkeeping — open a turn ONLY on genuine new user input
-  #    (not on any ROOT round-trip). No history signature is computed.
-  if frame is ROOT:
-      if not in_turn and genuine_user_text(rt): turn = new Turn(); in_turn = true
-  rt.turn = turn
+## 10. OpenTelemetry GenAI alignment
 
-  # 6. PUSH — register this response's tool_uses; Task/Agent also register a
-  #    spawn fingerprint under this frame
-  for tu in rt.response.tool_uses: pending_tu[tu.id] = frame
-  for tu in rt.response.tool_uses where tu.name in {Task, Agent}:
-      pending_spawn.add({tu.id, hash(tu.input.prompt), frame})
-  for tu in answered: pending_tu.remove(tu)
+The `session → turn → frame → round-trip` tree this document reconstructs **is** a
+trace tree. So the correlated output maps onto the OpenTelemetry GenAI semantic
+conventions one-for-one, and naming it that way makes the data legible and portable
+to any OTel-native backend without changing how it is captured (§5) or correlated (§6).
 
-  # 7. CLOSE — only a depth-0 terminal with no open children closes the turn
-  if frame is ROOT and rt.response.stop_reason is terminal
-     and no pending_tu under the tree:
-      turn.close(); in_turn = false
+### The mapping
 
-  stamp marks(rt): session_id, role, frame_id=frame.id,
-                   parent_frame_id=frame.parent, depth=frame.depth, turn_id=rt.turn
+| This document | OpenTelemetry GenAI | Notes |
+|---|---|---|
+| session | `session.id` attribute, spanning **many** traces | a correlation dimension, **not** a `trace_id` |
+| **turn** | **one trace (`trace_id`)** | the anchor: turn = unit of cost = one trace |
+| frame (`frame_id` / `parent_frame_id`) | a span; agent frame → `gen_ai.operation.name = invoke_agent`; `parent_frame_id` → parent `span_id` | |
+| round trip | a child span, `gen_ai.operation.name = chat` | the leaf LLM call |
+| `depth` | span nesting depth | |
+| `stop_reason` segmentation | trace boundary (a new turn opens a new trace) | |
+| activity (business-context tag) | a span attribute (`gen_ai.*` or a custom key) | |
+| usage (`tokens`) | span metrics (token counts), rolled up by `trace_id` then `session.id` | turn-level cost = sum of span usage in the trace |
+
+This is the same hierarchy the GenAI conventions describe — `Session → Agent(s) →
+Task(s) → LLM/Tool calls` — with our turn as the trace boundary.
+
+### Caveat — we *emit* OTel shape, we do not *consume* OTel context
+
+OpenTelemetry normally assumes the instrumented application propagates W3C trace
+context (`traceparent`) and emits its own spans. The AI clients here do **not**
+propagate trace context to the provider API — which is exactly why §6 derives the
+tree from structural signals. So the collector **mints** OTel-conformant trace/span
+identifiers from its reconstruction; it does not read them off the wire. Two
+consequences:
+
+- The §5 record stays as-is — content-free wire signals, not OTel spans. The OTel
+  shape is applied at the correlated-output / shipped-record layer, downstream of
+  capture.
+- Claude Code's wire expresses only one nesting level (§5, §6 limits), so a deep
+  agent span tree flattens to depth-1 for that client. A fidelity limit, not a
+  naming one.
+
+### Adoption options
+
+- **(a) Vocabulary + attributes (recommended now).** Name a turn a trace, a session a
+  `session.id`, a frame a span; adopt `gen_ai.*` attribute keys on the shipped record.
+  A naming/schema pass — cheap, and it makes the output consumable by OTel-native
+  backends.
+- **(b) Native OTLP ids (defer).** Mint true 16-byte `trace_id` / 8-byte `span_id`
+  hex so the data exports directly over OTLP. More work; worth it only if direct
+  export to an OTel backend (rather than feeding our own pipeline) is a near-term goal.
+
+### Version pinning
+
+The GenAI LLM-call and tool-call spans (`chat`, `execute_tool`) are the stable part
+of the conventions; the agent/session spans (`invoke_agent`, `session.id`) are still
+maturing. If we commit to attribute keys, pin them to a specific GenAI SemConv
+version (e.g. v1.37) so the mapping stays portable as the spec moves.
+
+---
+
+## 10. OpenTelemetry GenAI alignment
+
+The `session → turn → frame → round-trip` tree this document reconstructs **is** a
+trace tree. So the correlated output maps onto the OpenTelemetry GenAI semantic
+conventions one-for-one, and naming it that way makes the data legible and portable
+to any OTel-native backend without changing how it is captured (§5) or correlated (§6).
+
+### The mapping
+
+| This document | OpenTelemetry GenAI | Notes |
+|---|---|---|
+| session | `session.id` attribute, spanning **many** traces | a correlation dimension, **not** a `trace_id` |
+| **turn** | **one trace (`trace_id`)** | the anchor: turn = unit of cost = one trace |
+| frame (`frame_id` / `parent_frame_id`) | a span; agent frame → `gen_ai.operation.name = invoke_agent`; `parent_frame_id` → parent `span_id` | |
+| round trip | a child span, `gen_ai.operation.name = chat` | the leaf LLM call |
+| `depth` | span nesting depth | |
+| `stop_reason` segmentation | trace boundary (a new turn opens a new trace) | |
+| activity (business-context tag) | a span attribute (`gen_ai.*` or a custom key) | |
+| usage (`tokens`) | span metrics (token counts), rolled up by `trace_id` then `session.id` | turn-level cost = sum of span usage in the trace |
+
+This is the same hierarchy the GenAI conventions describe — `Session → Agent(s) →
+Task(s) → LLM/Tool calls` — with our turn as the trace boundary.
+
+### Caveat — we *emit* OTel shape, we do not *consume* OTel context
+
+OpenTelemetry normally assumes the instrumented application propagates W3C trace
+context (`traceparent`) and emits its own spans. The AI clients here do **not**
+propagate trace context to the provider API — which is exactly why §6 derives the
+tree from structural signals. So the collector **mints** OTel-conformant trace/span
+identifiers from its reconstruction; it does not read them off the wire. Two
+consequences:
+
+- The §5 record stays as-is — content-free wire signals, not OTel spans. The OTel
+  shape is applied at the correlated-output / shipped-record layer, downstream of
+  capture.
+- Claude Code's wire expresses only one nesting level (§5, §6 limits), so a deep
+  agent span tree flattens to depth-1 for that client. A fidelity limit, not a
+  naming one.
+
+### Adoption options
+
+- **(a) Vocabulary + attributes (recommended now).** Name a turn a trace, a session a
+  `session.id`, a frame a span; adopt `gen_ai.*` attribute keys on the shipped record.
+  A naming/schema pass — cheap, and it makes the output consumable by OTel-native
+  backends.
+- **(b) Native OTLP ids (defer).** Mint true 16-byte `trace_id` / 8-byte `span_id`
+  hex so the data exports directly over OTLP. More work; worth it only if direct
+  export to an OTel backend (rather than feeding our own pipeline) is a near-term goal.
+
+### Version pinning
+
+The GenAI LLM-call and tool-call spans (`chat`, `execute_tool`) are the stable part
+of the conventions; the agent/session spans (`invoke_agent`, `session.id`) are still
+maturing. If we commit to attribute keys, pin them to a specific GenAI SemConv
+version (e.g. v1.37) so the mapping stays portable as the spec moves.
+
+---
+
+## Appendix — data proof tools
+
+### MITMProxy
+
+To reproduce the captures, install mitmproxy (https://mitmproxy.org):
+
+```sh
+brew install mitmproxy
 ```
 
-### Delta from the draft §6 (only steps 3 and 5 change)
+If the CloudZero collector is running, stop it first — it also intercepts this
+traffic, and mitmproxy has to be the proxy in path. Then record the captures below.
 
-Steps 1, 2, 4, 6, 7 are unchanged from the draft. The correction is:
+### Captures
 
-- **Step 3:** drop the one-shot `ROOT not opened` guard; replace the two inline
-  preamble checks with `is_harness_wrapper`; re-enter ROOT (turn 2..N) on any
-  chain-less, spawn-less, non-wrapper RT with genuine user text — there is one
-  ROOT per session, so no message signature is needed to recognize it.
-- **Step 5:** open a turn only when `genuine_user_text(rt)` (not on any ROOT
-  round-trip). No `root_sig` is computed or stored.
 
-One sentence: *the draft opens ROOT once and starts a turn on any ROOT
-round-trip; the corrected loop lets the session's single ROOT persist and
-re-enter on genuine new user text, opens a turn only then, and rejects
-thread-cloning side-calls via the wrapper catalog — with no message-history
-parse anywhere on the turn path.*
+One-time CA trust (skip if `~/.mitmproxy/` already exists):
 
-### Notes
+```sh
+mitmdump --version >/dev/null                                       # creates ~/.mitmproxy/ on first run
+export HTTPS_PROXY="http://127.0.0.1:8080"
+export NODE_EXTRA_CA_CERTS="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"  # Claude Code (Node runtime)
+```
 
-- **Consume-on-match — not the ordering — is the safeguard.** A sub-agent's
-  *first* request is the only one with no `tool_result` to chain, so it is the
-  sole place the fingerprint must open a frame (step 2); the spawn is consumed
-  there. Because the spawn is spent on open, a later side-call that merely
-  *quotes* the prompt (security monitor RT10) finds no pending spawn to match —
-  regardless of whether CHAIN or SPAWN is checked first. **Verified on the
-  wire:** running the loop CHAIN-first vs SPAWN-first (both with consume-on-match)
-  over `parent-task-subagent` and `parent-parallel-subagents` yields **0
-  differing round-trips** (`tools/order_compare.py`). So the corpus does **not**
-  demonstrate that the precedence is load-bearing — consume-on-match does. The
-  order would only matter for a round-trip that simultaneously answers a pending
-  `tool_use` *and* carries an **unconsumed** spawn fingerprint in its user text;
-  no such round-trip exists in the corpus (the lone quoter, RT10, arrives after
-  its spawn is consumed). So "the order is load-bearing" is unsupported by the
-  captures; chain-first is retained as a safe convention, not a proven necessity.
-- **Turn-2 ROOT re-entry needs no signature.** A ROOT *resume* mid-turn (a
-  `tool_result`) is held by CHAIN (step 1) before the ROOT branch runs; a new
-  user turn lands as chain-less + spawn-less + non-wrapper + genuine-text, which
-  *is* the session's one ROOT. On the current corpus every ROOT landing is a
-  seed or a CHAIN, so the re-entry branch never fires — see §9 (and §6.1).
-- **Complexity:** O(1) per round-trip plus the spawn-fingerprint check, bounded
-  by concurrently-unopened spawns. No per-message hashing on the turn path.
+Per scenario — start the recorder in shell A, run the prompt in a fresh session in
+shell B, then Ctrl-C the recorder when the turn finishes. The four corpus scenarios:
 
-### 6.1 Why `root_sig` / `extends_root` was removed
+```sh
+# parent-task-subagent
+mitmdump -w captures/parent-task-subagent.mitm -p 8080
+claude -p "Use the Task tool to launch one general-purpose sub-agent that lists every .go file in proxy/internal/dispatch/aggregator/ and reports the one-line purpose of each from its top-of-file doc comment. Delegate the entire job to the sub-agent — do not read or list the files yourself."
 
-An earlier revision identified ROOT re-entry with `extends_root` — a hash-chain
-(`root_sig`) over the whole message list, true iff the previous ROOT request's
-messages are a prefix of the current one. The captures retire it on two grounds:
+# parent-parallel-subagents
+mitmdump -w captures/parent-parallel-subagents.mitm -p 8080
+claude -p "In a single response, make three Task tool calls at once — launch three general-purpose sub-agents that run in parallel, not one after another. The first summarizes proxy/internal/dispatch/aggregator/, the second proxy/internal/dispatch/sinks/sqlite/, the third proxy/internal/embellish/. Each sub-agent lists the .go files in its directory and gives a one-line purpose for each. Dispatch all three in one batch, then combine their results."
 
-- **It decides nothing.** Across all six captures the deciding classifier is
-  only ever `CHAIN`, `SPAWN`, `ROOT-seed`, or `SIDE` (frequencies in §9).
-  `ext=True` is *computed* 11× and is the *deciding* reason **0×** — every row it
-  touched was already classified by `CHAIN` or `SIDE`.
-- **It breaks under compaction.** It is the only part of the turn path that
-  re-reads message history; when the harness compacts/summarizes, the prefix no
-  longer matches and a continuing ROOT reads as a new thread. Turn tracking that
-  depends on history is fragile by construction.
+# parent-bash-loop
+mitmdump -w captures/parent-bash-loop.mitm -p 8080
+claude -p "Run these three commands one at a time, each as its own separate Bash tool call, and tell me what each printed before running the next: first git rev-parse --abbrev-ref HEAD, then ls proxy/internal/dispatch/aggregator/*.go, then wc -l docs/design/018_turn-and-frame-correlation.md. Use three separate Bash invocations — do not combine them."
 
-Re-entry is instead "one ROOT per session + not-a-wrapper + genuine user text"
-(step 3) — current-message-only, therefore compaction-proof. Removing
-`extends_root` is proven safe on the corpus; the simpler rule that inherits its
-job is correct-by-construction but **unvalidated by capture** (no multi-turn
-fixture — §9/§10).
+# quota-and-title
+mitmdump -w captures/quota-and-title.mitm -p 8080
+claude -p "In one word, what language is the proxy in this repo written in?"
+```
 
----
+OpenCode records through the same proxy — point it at `HTTPS_PROXY` and run an
+equivalent prompt.
 
-## 7. Invariants (the guarantees these requirements must hold)
+Verify each capture recorded (round-trip count). If it's empty, the client didn't
+route through the proxy — re-check `HTTPS_PROXY` and the CA are exported in shell B:
 
-1. **One turn = one user prompt's full recursion**, bounded by the depth-0
-   terminal. A round-trip is never a turn; an inner `end_turn` is a return.
-2. **Exactly one depth-0 ROOT (main agent) per session**, persistent across all
-   its turns. Everything that is neither a tree round-trip nor a genuine
-   main-thread round-trip is a side-call, never main.
-3. **Frame identity is the `tool_use.id`.** N parallel same-type sub-agents are
-   N frames.
-4. **A frame's parent is the frame holding the spawning `tool_use`**, matched by
-   spawn-prompt fingerprint — never inferred from ordering, depth, or content
-   similarity.
-5. **`Σ tokens GROUP BY turn_id`** equals the cost of that user turn, including
-   every nested sub-agent; side-calls are excluded.
-6. **The proxy marks are authoritative.** A consumer that disagrees with the
-   marks is a rendering bug, not a derivation choice.
+```sh
+mitmdump -nr captures/<scenario>.mitm -s captures/mitm2jsonl.py -q | wc -l
+```
 
-Each invariant is a test that fails when violated (§9).
+Captures contain real prompt/response content — keep scenarios synthetic.
 
----
+### Proof Scripts
+The edge (`capture_side.py`) and server (`tree_side.py`) are runnable offline against any
+capture, as a consistency check.
 
-## 8. Out of scope / not yet observed
+```sh
+# Stage 1 — capture side: one content-free JSONL record per round trip (mitmdump addon).
+CZ_CAPTURE_OUT=captures/analysis/foo.jsonl \
+  mitmdump -nq -r captures/foo.mitm -s scripts/capture_side.py
 
-- **Preamble + postamble side-call catalog.** ROOT classification excludes
-  harness calls by `is_harness_wrapper`: quota (`mt==1`), title-gen
-  (`<session>`), security-monitor (`<transcript>`), suggestion
-  (`[SUGGESTION MODE`). This catalog is the **one irreducible content
-  dependency** (a postamble call can be a byte-identical, thread-extending clone
-  of a real turn — §9-G3). New wrapper types are added here as captured.
-- **Compactor side-call — not positively classified.** The compactor appears
-  only in `long-session-compaction.mitm` (RT3: `mt=None`, non-streaming,
-  `'# Documentation…'`). It is currently marked `side_call` **by fallback**
-  (it matches no chain/spawn and ROOT is already seeded), **not** by any
-  positive signal. FR4 must not be claimed for the compactor until a positive
-  signal lands (candidate: `mt==None` + non-streaming). FR4 is validated for
-  quota/title/monitor/suggestion only.
-- **Multi-turn sessions.** The corpus contains **no** session with a 2nd
-  genuine user turn (§9). The ROOT re-entry branch (step 3) is therefore
-  **unvalidated on the wire**; a `parent-multiturn.mitm` capture is the
-  precondition for proving FR3/FR5 across turns.
-- **Per-session partitioning — unimplemented in the oracle.** The model is
-  per-session (§3/§6), but `tools/validate_frame_tree.py` keeps one global
-  state and never reads `x-claude-code-session-id`. `long-session-compaction.mitm`
-  spans **two** session ids (`790d7283` for the quota RT1, `d8df40a6` for
-  RT2/RT3); the three validated captures are each single-session, so the
-  cross-session bug — a later session's ROOT stolen by the persistent ROOT
-  state, or `pending_tu`/`pending_spawn` matching across sessions — is **latent
-  and untested**. The shipped detector must key all state by `session_id`.
-- **Cross-session parents.** Every spawn observed shares the parent's
-  `session_id`; `parent_frame_id` stays in-session until a cross-session spawn
-  is captured.
-- **Identical concurrent prompts.** Two parallel spawns with byte-identical
-  prompts are indistinguishable by fingerprint; resolve oldest-pending-first and
-  flag — not observed in the corpus.
-- **Multi-replica state.** The tree state is per-process; a sharded proxy needs
-  shared state so a child's first request can find its parent's pending spawn
-  (ADR 049 §9.3).
+# Stage 2 — correlation: build the turn tree (stdlib Python; reads only the JSONL).
+python3 scripts/tree_side.py captures/analysis/foo.jsonl
+```
 
----
-
-## 9. Verification — honest scope
-
-Validated by standalone replay over the corpus with `mitmdump`:
-`tools/validate_frame_tree.py` (the loop), `tools/analyze_052.py` (the loop with
-per-RT classifier provenance + predicate toggles), `tools/order_compare.py`
-(chain-first vs spawn-first), cross-checked with `tools/dump_struct.py` /
-`tools/clone_check.py`. **Read both columns.**
-
-| Asserts | Fixture | Result |
-|---|---|---|
-| `Bash` loop = one ROOT frame, one turn (RT1–RT4) | `parent-bash-loop` | ✅ reproduced |
-| RT1→RT8 one turn; sub-agent `toolu_012Y…` under ROOT; RT6 `end_turn` is a return; **RT7 monitor = side_call**; turn closes at RT8 | `parent-task-subagent` | ✅ reproduced |
-| RT1/RT2 preamble side-calls; **RT3 opens three sibling frames** (`toolu_01Bg/01PV/014J`) routed by `docs/tools/crates` prompt; **all monitor RTs (RT9/10/12/14) = side_call**; **RT16 suggestion = side_call**; **RT3→RT15 one turn** | `parent-parallel-subagents` | ✅ reproduced |
-| `is_harness_wrapper` catalog for quota/title/monitor/suggestion present and excluded | `parent-parallel-subagents` (quota RT1, title RT2, monitor RT9/10/12/14, suggestion RT16) + monitor RT7 (task) | ✅ reproduced |
-| `turn_id` stable across the whole recursion; not minted per agent run | both sub-agent captures | ✅ reproduced (within turn 1) |
-| **G3** — suggestion postamble (`[SUGGESTION MODE`) is a thread-extending clone of a real turn; only the wrapper branch keeps it off-turn | `parent-parallel-subagents` RT15/RT16 | ✅ verified (see below) |
-| **Consume-on-match** defeats the prompt-quoting monitor (RT10 quotes the `crates/` spawn) | `parent-parallel-subagents` | ✅ verified — load-bearing (chain-first is **not**, see §6 note) |
-| **G1** — ROOT re-entry across turns (now: not-a-wrapper + genuine-text; `extends_root` removed, §6.1) | — | ❌ **0 captures; the re-entry branch fires 0×** |
-| FR3/FR5 **across turns** (≥2 user turns in one session) | — | ❌ **unexercised; no multi-turn capture** |
-| **FR4 compactor** — positive side-call signal | `long-session-compaction` | ❌ caught by **fallback only** (`mt=None`, non-streaming); no positive signal; this capture is otherwise excluded from the set above |
-| **Per-session partitioning** (model is per-session, §3/§6) | `long-session-compaction` (2 session ids `790d7283`/`d8df40a6`) | ❌ oracle keeps one global state, never reads `x-claude-code-session-id`; cross-session bug **latent, untested** |
-| `quota-and-title.mitm` is a useful fixture | `quota-and-title` | ❌ **misnamed** — its lone `/v1/messages` flow is `mt=64000`, `<system-reminder>` body, neither quota nor title; the real quota (`mt=1`) and title (`<session>`) probes live in `parent-parallel-subagents` RT1/RT2 |
-| Viewer renders the marks verbatim (no client re-derivation) | viewer integration | pending build |
-
-**G3 (verified).** `parent-parallel-subagents` RT15 (genuine ROOT) and RT16
-(suggestion side-call) are byte-identical once the per-request
-`x-anthropic-billing-header` line is stripped (`sys_sha=c9230c0d42f2` for
-RT3==RT15==RT16): same system prompt, 10 tools, model, `max_tokens`, metadata —
-**and RT16 extends the thread** (`ext=True`). Neither system content nor
-thread-continuity separates it from a real turn; only the trailing-text wrapper
-does. Toggling off **only** the suggestion branch flips RT16 to a false
-`turn=1 main` via `ROOT-reenter` — so the branch is load-bearing.
-
-**Scope of what the corpus proves, stated plainly:**
-
-- ✅ The **single-turn, single-session** algorithm — CHAIN + SPAWN
-  reconstruction, parent/depth links, the quota/title/monitor/suggestion wrapper
-  catalog, the RT15/RT16 clone, the G3 postamble exclusion, and the
-  consume-on-match prompt-quoter defense — is reproduced RT-for-RT on the three
-  sub-agent captures (+ the quota fixture).
-- ❌ The **G1 multi-turn correction** (ROOT re-entry, turn-N opening) is **not**
-  validated on the wire: it fires **0 times**. On a *constructed* two-turn
-  sequence (`tools/probe_second_turn.py`) the draft's one-shot guard demonstrably
-  drops turn-2 to a side-call and the corrected loop fixes it — but a constructed
-  sequence is not the product. The turn-2 path is **correct by construction,
-  unproven by capture.** (`extends_root` is no longer the mechanism — it was
-  removed per §6.1; re-entry is now not-a-wrapper + genuine-text.)
-- ❌ **Per-session scoping** (cross-session partitioning) and the **compactor**
-  positive side-call signal are **unexercised** — their only fixture
-  (`long-session-compaction`, two session ids) is outside the validated set and
-  the oracle has no session partitioning.
-- Note: `extends_root` was **removed** (§6.1) — across all six captures the only
-  deciders are `CHAIN` (13), `SIDE` (10), `ROOT-seed` (5), `SPAWN` (4); `ext=True`
-  is computed 11× and decides 0×. Chain-first precedence is likewise not
-  load-bearing: chain-first vs spawn-first gives 0 differing round-trips given
-  consume-on-match (`tools/order_compare.py`). Both were correct-by-design
-  conventions, not capture-proven necessities — `extends_root` is now gone, and
-  the wrapper content-peek (`is_harness_wrapper`) is the one irreducible
-  dependency (suggestion-mode RT16 is byte-identical to a real turn — §9 G3).
-
-The product change (marking-detector rewrite + marks reshape) is gated on this
-replay passing. **The honest scope of §9 is: single-turn, single-session, three
-captures.** FR3/FR5 (multi-turn), per-session partitioning, and the compactor
-FR4 signal must not be marked validated until `parent-multiturn.mitm` and a
-multi-session capture (§10) land.
-
----
-
-## 10. Closing the gaps — sequencing
-
-1. **Record `captures/max/parent-multiturn.mitm`** — `mitmdump -w …` driving
-   `claude` through ≥3 user turns in one session: turn 1 (Bash + one sub-agent),
-   turn 2 (same session, new prompt, tool use), turn 3 (two parallel
-   sub-agents). Let quota / title-gen / security-monitor / **suggestion-mode**
-   side-calls interleave — the postamble (G3) must be present.
-2. **Golden it as fail-before** — `tools/expected_marks/<capture>.json` per
-   round-trip (`role`, `frame_id`, `parent_frame_id`, `depth`, `turn_id`):
-   distinct `turn_id` per turn, one `session_id`, ROOT persists, every side-call
-   excluded. Red against today's detector; green after the §6 loop lands.
-3. **Implement §6 in the proxy marking detector** — emit the §5 marks onto
-   `tap.jsonl`; retire per-`stop_reason` turn minting, system-hash slots,
-   `pending_children`. **Partition all state by `x-claude-code-session-id`**
-   (the oracle's missing piece — §8); add a multi-session capture (or reuse
-   `long-session-compaction`, 2 session ids) to its goldens so cross-session
-   isolation is asserted, not assumed.
-4. **Positive compactor classification** — add a positive side-call signal for
-   the compactor (candidate: `mt==None` + non-streaming) so FR4 stops relying on
-   the fallback, and golden `long-session-compaction` RT3 against it.
-5. **Turn the oracle into an assertion** — `tools/validate_frame_tree.py`
-   asserts each RT against its golden and exits non-zero on drift (deterministic,
-   no auth). Runnable by any third party:
-   ```
-   for c in parent-bash-loop parent-task-subagent parent-parallel-subagents parent-multiturn; do
-     mitmdump -nq -r captures/max/$c.mitm -s tools/validate_frame_tree.py
-   done
-   ```
-6. **Rust golden-replay gate** — drive the same recorded bytes through the
-   shipped `AnthropicMarkingDetector` in-process and assert the same goldens.
-   This guards the product, not just the Python oracle. Keep `#[ignore]`
-   live-`claude` tests as fidelity checks, never the CI gate.
-7. **Re-record or rename `quota-and-title.mitm`** — independent cleanup.
-
-Downstream consumers re-bind to the §5 marks and do not change the design
-above: the viewer must **delete** its client-side re-derivation (the corrupted
-`ooda.ts` heuristic) and render `frame_id`/`parent_frame_id`/`depth`/`role`
-verbatim; `noodle-embellish` adds the FR5 `GROUP BY turn_id` / `GROUP BY
-frame_id` rollups (side-calls bucketed apart); the LEARNED panel re-binds its
-turn-delta and lineage line to the depth-0 `turn_id` and `parent_frame_id`
-(§11). Each is guarded by the same golden marks (§9).
-
----
-
-## 11. Impact on prior work (ADR 049 / 050 / 051)
-
-### ADR 049 — sub-agent lineage — **superseded (high impact)**
-
-049 *is* the design this replaces; its shipped marking detector implements it.
-What dies:
-
-- **Identity by canonical system prompt** → frame = `tool_use.id`.
-- **Per-agent-run turn minting** (049 §6.2) → turn = the **depth-0** terminal
-  span. A sub-agent's `end_turn` must stop minting a turn.
-- **The `pending_children` slot map + pop-on-child-open** (049 §6.3) → a frame
-  **tree** routed by **persistent** spawn-prompt match. 049's §9.5 claim that
-  concurrent dispatch "attributes correctly" was **never validated against a
-  parallel capture and is false** — three same-type sub-agents collapse into one
-  prompt-content slot.
-
-What survives and is re-verified: the wire facts (049 §2 — shared session
-header, `tool_use(Task|Agent)` spawn, `stop_reason` boundary, the byte-exact
-spawn-prompt fingerprint), the proxy-edge single-pass stamping, and the pipeline
-plumbing (049 §8) — but with the **reshaped marks** of §5. The marking detector
-is a rewrite, not a patch.
-
-### ADR 050 — session-state service — **low impact (not landed)**
-
-050 (draft, PR #135, not on `main`) decouples the marking store into a pluggable
-in-memory/Redis service. That abstraction — get/put, CAS, fail-open — is
-**independent of the state shape** and survives intact. The only change: the
-stored value is the **frame tree + pending spawns** (§3/§6), not
-049's `HashMap<Option<SystemHash>, AgentRunState>`. The cross-replica need is
-unchanged (a child's first request must find its parent's pending spawn in
-shared state).
-
-### ADR 051 — viewer LEARNED reveal — **medium impact (landed)**
-
-The LEARNED core survives: per-round-trip attribution + evidence keyed by
-`event_id` is unaffected. What must change where 051 consumes the marks:
-
-- **Turn definition.** 051's glossary turn ("ends on a terminal `stop_reason`")
-  is the per-agent-run reading; it must adopt the **depth-0** turn. Consequence:
-  the per-turn context/attribution delta now compares round-trips across the
-  *whole recursion* — parent and its sub-agents share one turn. This **improves**
-  the token-by-turn rollup (a turn's cost now correctly sums its sub-agents).
-- **Agent-run identity** (`agent_run_id`) → `frame_id`; **lineage** (the four
-  `parent_*` fields) → `parent_frame_id`.
-- **Marks/`SideEffectEvent` correlation fields** reshape to carry `frame_id` and
-  the depth-0 `turn_id`.
-
-Net: LEARNED keeps working per round-trip; its turn-grouping, delta, and lineage
-line re-bind to the §5 marks. The session-grouped panel and the OODA tree are
-re-rendered from the §3 tree, not re-derived.
-
-### Cross-cutting
-
-The marks contract (§5) is the single change that ripples through every prior
-surface: `tap.jsonl` → sqlite DDL → OTLP attributes → viewer `DecodedMarks`. 049
-§8 and 051 both read it; both re-bind to the new shape in one migration.
+`tree_side.py` writes `foo.tree.md` (the `session → turn → RTs/subagents` tree + an ordered
+table) and `foo.ordered.jsonl` (one node per round trip, in tree order). The client is detected
+per-record from headers, so both clients run through the same command. Multiple captures'
+JSONL can be concatenated — `rt_uid` keeps records distinct and frames are namespaced by
+session.

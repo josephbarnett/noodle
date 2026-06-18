@@ -17,6 +17,7 @@ pub mod anthropic;
 pub mod frame_signals;
 pub mod frame_tree;
 pub mod in_memory_store;
+pub mod record;
 
 pub use anthropic::AnthropicMarkingDetector;
 pub use frame_tree::{
@@ -24,3 +25,4 @@ pub use frame_tree::{
     ResponseSignals, RoundTripSignals, ToolUse,
 };
 pub use in_memory_store::InMemoryMarkingStore;
+pub use record::{request_record, CaptureClient, FrameHeaders, RequestRecord};

@@ -1,0 +1,36 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_01Lgr9nsRy9ZC3CYPyMLXPr2","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":919,"cache_read_input_tokens":25088,"cache_creation":{"ephemeral_5m_input_tokens":919,"ephemeral_1h_input_tokens":0},"output_tokens":3,"service_tier":"standard","inference_geo":"global"}}             }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}  }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Both s"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ub-agents completed. Results:\n\n| Directory | Total files | Primary language |\n|-----------|-------------|------------------|\n| **"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"app/** | 257 | Swift (202 `.swift`) |\n| **proxy/** | 162 | Go (157 `.go`) |\n\n**app"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"/** (257): 202 `.swift`, 16 `.png`, 9 `.strings`, 8 `.md`, 6 `.json`, plus Xcode project/"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"config files.\n\n**proxy/** (162): 157 `.go`, plus `go.mod`/`go.sum`, 1 `.yaml`, and 2 extensionless files."}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\nCombined total: **419 files**."}         }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":2,"cache_creation_input_tokens":919,"cache_read_input_tokens":25088,"output_tokens":219,"output_tokens_details":{"thinking_tokens":0}}           }
+
+event: message_stop
+data: {"type":"message_stop"    }
+

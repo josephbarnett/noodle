@@ -1,0 +1,84 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_01LJYvArpop2c5wXN3B8R1gR","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":5205,"cache_read_input_tokens":12666,"cache_creation":{"ephemeral_5m_input_tokens":5205,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard","inference_geo":"global"}}      }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}    }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"This"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" application is **CloudZero AI Cost Intelligence** — a macOS tool that provides real-time visibility into AI/LLM API"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" spending across an organization.\n\n## What it does\n\nIt transparently meters A"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I API usage (Claude, OpenAI, Cursor, Copilot, etc.) at the network"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" level, extracting per-request cost telemetry **without modifying any AI tools or needing vendor cooperation**.\n\n## How"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" it works\n\n1. A macOS **system extension** (`NETransparentProxyProvider`) intercepts TCP connections to known AI provider h"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ostnames (e.g. `api.anthropic.com`) at the OS level.\n2. Matching traffic is routed to a local **Go MITM proxy**"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" (`cz-monitor` on `localhost:9090`), which terminates TLS using a locally-trusted CA c"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ert.\n3. The proxy parses each request/response to extract **tokens, cost, latency, model, session, and identity** info"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":".\n4. Each API call becomes a telemetry record stored in a local **SQLite** database"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":", destined for the CloudZero platform.\n\nNon-AI traffic never touches the extension, so there"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"'s zero overhead for everything else.\n\n## Key components\n\n| Component | Role |\n|-----------|------|\n| **"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"CloudZero.app** | Swift/SwiftUI menu bar app — manages lifecycles, CA trust, dashboard |\n| **CZNetworkExtension"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"** | System extension that intercepts AI provider flows |\n| **cz-monitor** | Go MITM proxy that does TLS inter"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ception + telemetry extraction |\n| **SQLite** | Local store, one row per API call |\n\n## Notable design points"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\n- **Fail-open**: telemetry collection never blocks API access. If `cz-monitor` crashes, traffic passes through directly — you"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" lose telemetry temporarily, never API access.\n- **Two deployments**: developer laptops (Network Extension, system-wide, z"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ero-config) and customer cloud/K8s (`HTTPS_PROXY` routing into a cent"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ralized monitor).\n\n## The bigger picture\n\nIt's positioned as the **telemetry capture layer** for \"AI FinOps\" — extending CloudZero's"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" existing cloud-cost capabilities to AI spend, with a roadmap toward project/"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"task tagging (mapping spend to git branch/Jira ticket), anomaly detection, and team/"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"org rollups.\n\n**Supported providers:** Anthropic, OpenAI, Azure OpenAI, AWS Bedrock, and Google AI."}      }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0         }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":2,"cache_creation_input_tokens":5205,"cache_read_input_tokens":12666,"output_tokens":816,"output_tokens_details":{"thinking_tokens":0}} }
+
+event: message_stop
+data: {"type":"message_stop"               }
+

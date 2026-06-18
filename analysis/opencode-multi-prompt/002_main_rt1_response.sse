@@ -1,0 +1,72 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-haiku-4-5-20251001","id":"msg_01BHxdTuAogMy1VKL8rfXnDZ","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":602,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":5,"service_tier":"standard","inference_geo":"not_available"}}              }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}       }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The user is asking \""}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"what does this application do?\" - this is a general question about understanding what an application does. It's a"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" foundational/introductory question.\n\nLet me think about the title:\n- It should be brief ("}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"≤50 characters)\n- It should help the user find this conversation later\n- The language is English"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"\n- I should focus on the main topic/question\n\nThe question is asking for an overview/explanation of an"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" application's purpose/functionality.\n\nGood title options:\n- \"Application overview\" (19 chars) "}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"✓\n- \"What does app do\" (16 chars) ✓\n- \"Understanding application purpose"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"\" (33 chars) ✓\n- \"App functionality overview\" (26 chars) ✓\n- \"Exploring"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" application purpose\" (29 chars) ✓\n\nFollowing the rules:\n- No \"the\", \"this\", \"my\", \"a\", \"an\" - so not \""}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"what does this application do\"\n- Focus on main topic - understanding what the app does\n- Keep it natural and grammat"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"ically correct\n- No tool names\n\nI think \"Application overview\" or \"App functionality overview\" would work well. Let me go with something"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" that's clear and simple.\n\n\"Application overview\" is 19 chars and very clear -"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" it captures the intent of understanding what the app does.\n\nAlternatively: \"App functionality"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" overview\" is 26 chars and also good.\n\nI'll go with \"Application overview\" as it's concise and natural."}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"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"}        }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0               }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Application overview"}     }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1       }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":602,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":343,"output_tokens_details":{"thinking_tokens":335}}  }
+
+event: message_stop
+data: {"type":"message_stop"            }
+

@@ -1,0 +1,42 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_01F8a5Efa1e57q9C7agSSPzE","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":254,"cache_read_input_tokens":53396,"cache_creation":{"ephemeral_5m_input_tokens":254,"ephemeral_1h_input_tokens":0},"output_tokens":48,"service_tier":"standard","inference_geo":"global"}}            }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_01QPA9vuSMLx1Z8XBvPPV9dB","name":"grep","input":{},"caller":{"type":"direct"}}              }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"pattern\": \"SSEEnd|StreamResponseModifier|Request"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"headers|func \\\\(addon \\\\*BaseAddon\\\\)|Request\\\\(|Response\\\\(|"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"ShouldIntercept"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\", \"include\": \"addon.go"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\", \"path\": \"/"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"Users/joe.barnett/go/pkg/mod/github.com/lqqyt2423/go-mitmproxy@v1.8.11/proxy/"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"}"}           }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0            }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":2,"cache_creation_input_tokens":254,"cache_read_input_tokens":53396,"output_tokens":201,"output_tokens_details":{"thinking_tokens":0}}        }
+
+event: message_stop
+data: {"type":"message_stop"  }
+

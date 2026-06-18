@@ -1,0 +1,60 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_01Twivd3AuMZ321itZeG2omn","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":5328,"cache_creation_input_tokens":1635,"cache_read_input_tokens":33963,"cache_creation":{"ephemeral_5m_input_tokens":1635,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard","inference_geo":"global"},"diagnostics":null}  }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}      }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `doc.go` — package doc: describes the three SQLite-backed `Sink[T]` implementations (telemetry events"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":", side effects, round-trip records) and the migration-009 tables they write to.\n- `s"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"qlite.go` — shared helpers, primarily `queryClauses`, which builds a SQL W"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"HERE clause and args from a `dispatch.Query` (time range + correlation filters).\n- `round_trip_record_sink.go` — `R"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"oundTripRecordSink`, the `Sink[dispatch.RoundTripRecord]` impl that mar"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"shals/persists round-trip records into the `round_trip_records` table.\n- `round_trip_record_sink_test.go` — unit tests for `RoundTripRecordSink`"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":", including the `sampleRoundTripRecord` fixture builder.\n- `side_effect_sink.go` — `SideEffectSink`, the `Sink[dispatch.Side"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Effect]` impl that stores kind-discriminated JSON payloads (Hint/Artifact/Audit/ResolvedRecord) in the"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `side_effects` table.\n- `side_effect_sink_test.go` — unit tests for `SideEffectSink`, including the `sampleSideEffect` fixture covering each side"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-effect kind.\n- `telemetry_event_sink.go` — `TelemetryEventSink`, the `Sink[dispatch.TelemetryEvent]` impl that writ"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"es telemetry/cost rows into the `telemetry_events` table.\n- `telemetry_event_sink_test.go` — unit tests for `TelemetryEventSink`,"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" including the `sampleTelemetryEvent` fixture builder.\n- `testsupport_test.go` — shared test helpers that open a tem"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"p SQLite DB and apply the real `db/migrations` schema (`migrationsDir`, `openMigratedDB`)."}  }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0            }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":5328,"cache_creation_input_tokens":1635,"cache_read_input_tokens":33963,"output_tokens":607,"output_tokens_details":{"thinking_tokens":0},"iterations":[{"input_tokens":5328,"output_tokens":607,"cache_read_input_tokens":33963,"cache_creation_input_tokens":1635,"cache_creation":{"ephemeral_5m_input_tokens":1635,"ephemeral_1h_input_tokens":0},"type":"message"}]},"context_management":{"applied_edits":[]}  }
+
+event: message_stop
+data: {"type":"message_stop"        }
+

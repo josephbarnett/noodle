@@ -1,18 +1,16 @@
-//! Extract ADR 052 §6 [`RequestSignals`] from a `/v1/messages` request body and
+//! Extract ADR 052 §5 [`RequestSignals`] from a `/v1/messages` request body and
 //! build response [`ToolUse`] fingerprints from decoded `tool_use` blocks.
 //!
-//! This is the Rust counterpart of `tools/build_052_fixtures.py`: it must
-//! produce, from live wire bytes, the same sanitized signals the Python builder
-//! produces from a capture, so the proxy's live marks match the checked-in
-//! goldens. All outputs are hashes / ids / enums — no raw text is retained.
+//! All outputs are hashes / ids / enums — no raw text is retained. Frame
+//! identity (`agent_id`) is header-derived and set by the proxy; this module
+//! computes the body-derived signals only.
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use super::frame_tree::{RequestSignals, ToolUse};
 
-/// Hex SHA-256 of a string (plain sha256 — matches the Python builder's
-/// `_sha`; distinct from the domain-separated [`super::SystemHash`]).
+/// Hex SHA-256 of a string (plain sha256 — matches the Python builder's `_sha`).
 fn sha256_hex(s: &str) -> String {
     let mut h = Sha256::new();
     h.update(s.as_bytes());
@@ -33,15 +31,13 @@ fn text_blocks(content: Option<&Value>) -> Vec<&str> {
     }
 }
 
-const WRAPPERS: [&str; 4] = [
-    "<session>",
-    "<transcript>",
-    "[SUGGESTION MODE",
-    "<system-reminder>",
-];
+/// The compaction-recap preamble — a genuine-text round-trip that is not a user
+/// turn (the harness asks the model to summarize), so it is a side-call.
+const RECAP_PREFIX: &str = "The user stepped away and is coming back. Recap";
 
-/// Parse a `/v1/messages` request body into the §6 request-side signals. Returns
-/// [`RequestSignals::default`] when the body is empty or unparseable.
+/// Parse a `/v1/messages` request body into the §5 request-side signals. Returns
+/// [`RequestSignals::default`] when the body is empty or unparseable. `agent_id`
+/// is left `None` here — it is header-derived and stamped by the proxy.
 #[must_use]
 pub fn request_signals(body: &[u8]) -> RequestSignals {
     let Ok(v) = serde_json::from_slice::<Value>(body) else {
@@ -54,57 +50,8 @@ pub fn request_signals(body: &[u8]) -> RequestSignals {
         .and_then(Value::as_array)
         .unwrap_or(&empty);
 
-    // request_tool_result_ids (CHAIN) + message_sig (extends_root).
-    let mut request_tool_result_ids = Vec::new();
-    let mut message_sig = Vec::new();
-    for m in msgs {
-        let role = m.get("role").and_then(Value::as_str).unwrap_or("");
-        match m.get("content") {
-            Some(Value::Array(arr)) => {
-                let mut ids = Vec::new();
-                for b in arr {
-                    match b.get("type").and_then(Value::as_str) {
-                        Some("tool_result") => {
-                            if let Some(t) = b.get("tool_use_id").and_then(Value::as_str) {
-                                request_tool_result_ids.push(t.to_string());
-                                ids.push(format!("tr:{t}"));
-                            }
-                        }
-                        Some("tool_use") => {
-                            if let Some(id) = b.get("id").and_then(Value::as_str) {
-                                ids.push(format!("tu:{id}"));
-                            }
-                        }
-                        Some("text") => {
-                            let t = b.get("text").and_then(Value::as_str).unwrap_or("");
-                            ids.push(format!("tx:{}", &sha256_hex(t)[..12]));
-                        }
-                        _ => {}
-                    }
-                }
-                message_sig.push(format!("{role}|{}", ids.join(",")));
-            }
-            Some(other) => {
-                let s = other.as_str().unwrap_or("");
-                message_sig.push(format!("{role}|tx:{}", &sha256_hex(s)[..12]));
-            }
-            None => {}
-        }
-    }
-
-    // first user message text-block hashes (SPAWN match keys).
-    let first_user_text_sha256s = msgs
-        .iter()
-        .find(|m| m.get("role").and_then(Value::as_str) == Some("user"))
-        .map(|m| {
-            text_blocks(m.get("content"))
-                .iter()
-                .map(|t| sha256_hex(t))
-                .collect()
-        })
-        .unwrap_or_default();
-
-    // trailing user message (is_harness_wrapper / genuine_user_text).
+    // Trailing user message — its leading text classifies harness wrappers and
+    // the compaction recap, the body-derived side-call signals.
     let trailing = msgs
         .iter()
         .rev()
@@ -123,32 +70,28 @@ pub fn request_signals(body: &[u8]) -> RequestSignals {
         "none"
     }
     .to_string();
-    let has_genuine_user_text = trailing.iter().any(|t| {
-        let s = t.trim();
-        !s.is_empty() && !WRAPPERS.iter().any(|w| s.starts_with(w))
-    });
+
+    // A round-trip driven by no user prompt: a quota probe (`max_tokens == 1`),
+    // a harness wrapper, or the compaction recap. `<system-reminder>` is NOT a
+    // side-call — it wraps genuine user turns.
+    let side_call = max_tokens == Some(1)
+        || trailing_wrapper_kind != "none"
+        || joined.starts_with(RECAP_PREFIX);
 
     RequestSignals {
         max_tokens,
-        request_tool_result_ids,
-        first_user_text_sha256s,
         trailing_wrapper_kind,
-        has_genuine_user_text,
-        message_sig,
+        agent_id: None,
+        side_call,
     }
 }
 
 /// Build a response [`ToolUse`] from a decoded `tool_use` block. `prompt_sha256`
-/// is set only for `Task`/`Agent` spawns carrying a string `input.prompt` (the
-/// SPAWN fingerprint); every tool (incl. `Bash`/`Read`) is still returned so the
-/// detector can register it in `pending_tu` for CHAIN routing.
+/// is set for any spawn carrying a string `input.prompt` (name-free — the spawn
+/// tool is `Task`/`Agent`/`task` across clients).
 #[must_use]
 pub fn response_tool_use(name: &str, id: &str, input: &Value) -> ToolUse {
-    let prompt_sha256 = if matches!(name, "Task" | "Agent") {
-        input.get("prompt").and_then(Value::as_str).map(sha256_hex)
-    } else {
-        None
-    };
+    let prompt_sha256 = input.get("prompt").and_then(Value::as_str).map(sha256_hex);
     ToolUse {
         name: name.to_string(),
         id: id.to_string(),
@@ -161,43 +104,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn quota_probe_signals() {
+    fn quota_probe_is_side_call() {
         let body = br#"{"max_tokens":1,"messages":[{"role":"user","content":"quota"}]}"#;
         let s = request_signals(body);
         assert_eq!(s.max_tokens, Some(1));
-        assert_eq!(s.trailing_wrapper_kind, "none");
-        assert!(s.has_genuine_user_text); // "quota" is genuine text; mt==1 is the wrapper signal
+        assert!(s.side_call);
+        assert_eq!(s.agent_id, None);
     }
 
     #[test]
-    fn title_gen_and_chain_and_spawn_keys() {
-        // title-gen: trailing <session>
+    fn wrappers_and_recap_are_side_calls() {
         let title = br#"{"max_tokens":32000,"messages":[{"role":"user","content":[{"type":"text","text":"<session>\nhi"}]}]}"#;
         assert_eq!(request_signals(title).trailing_wrapper_kind, "session");
-        assert!(!request_signals(title).has_genuine_user_text);
+        assert!(request_signals(title).side_call);
 
-        // chain: a tool_result id is collected
-        let chain = br#"{"messages":[{"role":"user","content":[{"type":"text","text":"go"}]},{"role":"assistant","content":[{"type":"tool_use","id":"toolu_x","name":"Bash"}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_x"}]}]}"#;
-        let s = request_signals(chain);
-        assert_eq!(s.request_tool_result_ids, vec!["toolu_x".to_string()]);
-        // first-user text block hash present (spawn match key)
-        assert_eq!(s.first_user_text_sha256s.len(), 1);
-        assert_eq!(s.first_user_text_sha256s[0], sha256_hex("go"));
+        let monitor = br#"{"messages":[{"role":"user","content":"<transcript>\nx"}]}"#;
+        assert!(request_signals(monitor).side_call);
+
+        let recap = br#"{"messages":[{"role":"user","content":"The user stepped away and is coming back. Recap in under 40 words"}]}"#;
+        assert!(request_signals(recap).side_call);
     }
 
     #[test]
-    fn spawn_prompt_fingerprint_matches_first_user_hash() {
-        // The child's first request carries the spawn prompt verbatim as its
-        // first-user text block; the spawn's prompt_sha256 must equal that hash.
-        let prompt = "List the contents of crates/";
-        let child = format!(
-            r#"{{"messages":[{{"role":"user","content":[{{"type":"text","text":{prompt:?}}}]}}]}}"#
-        );
-        let s = request_signals(child.as_bytes());
-        let spawn = response_tool_use("Agent", "toolu_a", &serde_json::json!({"prompt": prompt}));
-        assert_eq!(
-            spawn.prompt_sha256,
-            Some(s.first_user_text_sha256s[0].clone())
-        );
+    fn genuine_prompt_is_not_a_side_call() {
+        let body = br#"{"max_tokens":64000,"messages":[{"role":"user","content":"do the thing"}]}"#;
+        let s = request_signals(body);
+        assert!(!s.side_call);
+        assert_eq!(s.trailing_wrapper_kind, "none");
+    }
+
+    #[test]
+    fn system_reminder_is_not_a_side_call() {
+        // `<system-reminder>` wraps genuine user turns — must NOT be a side-call.
+        let body = br#"{"messages":[{"role":"user","content":"<system-reminder>\nthe user sent a new message"}]}"#;
+        assert!(!request_signals(body).side_call);
+    }
+
+    #[test]
+    fn spawn_prompt_fingerprint_is_name_free() {
+        let spawn = response_tool_use("Agent", "toolu_a", &serde_json::json!({"prompt": "List crates/"}));
+        assert_eq!(spawn.prompt_sha256, Some(sha256_hex("List crates/")));
+        let lower = response_tool_use("task", "toolu_b", &serde_json::json!({"prompt": "x"}));
+        assert!(lower.prompt_sha256.is_some(), "name-free: lowercase `task` too");
     }
 }
