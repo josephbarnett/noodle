@@ -4,7 +4,7 @@
 //!
 //! - **Frame** — `x-claude-code-agent-id` present ⇒ a sub-agent frame parented
 //!   to the main agent (`ROOT`, depth 1); absent ⇒ the main frame (`ROOT`,
-//!   depth 0). (OpenCode's session/parent headers map the same way upstream of
+//!   depth 0). (`OpenCode`'s session/parent headers map the same way upstream of
 //!   this detector.)
 //! - **Turn** — opens on the first main round-trip after the previous turn
 //!   closed; closes when the main frame stops at a terminal `stop_reason`. A
@@ -86,7 +86,7 @@ pub struct RequestSignals {
     /// `"session" | "transcript" | "suggestion" | "none"` — trailing-text
     /// harness-wrapper classification (a side-call signal).
     pub trailing_wrapper_kind: String,
-    /// `x-claude-code-agent-id` (or the OpenCode equivalent), lifted from the
+    /// `x-claude-code-agent-id` (or the `OpenCode` equivalent), lifted from the
     /// request headers by the proxy. `Some` ⇒ a sub-agent frame; `None` ⇒ main.
     pub agent_id: Option<String>,
     /// A round-trip driven by no user prompt (quota probe / harness wrapper /
@@ -373,7 +373,11 @@ mod tests {
         assert_eq!(sub.frame_id.as_deref(), Some("agent-xyz"));
         assert_eq!(sub.parent_frame_id.as_deref(), Some("ROOT"));
         assert_eq!(sub.depth, Some(1));
-        assert_eq!(sub.turn_id.as_deref(), Some("turn-1"), "sub-agent inherits the turn");
+        assert_eq!(
+            sub.turn_id.as_deref(),
+            Some("turn-1"),
+            "sub-agent inherits the turn"
+        );
     }
 
     #[test]
@@ -442,7 +446,11 @@ mod tests {
         let m1 = reg.on_round_trip(&s1, &main_prompt("end_turn"));
         let m2 = reg.on_round_trip(&s2, &main_prompt("end_turn"));
         assert_eq!(m1.role, FrameRole::Main);
-        assert_eq!(m2.role, FrameRole::Main, "session 2 seeds its own ROOT turn");
+        assert_eq!(
+            m2.role,
+            FrameRole::Main,
+            "session 2 seeds its own ROOT turn"
+        );
         assert_ne!(m1.turn_id, m2.turn_id, "distinct turn ids across sessions");
         assert_eq!(reg.session_count(), 2);
     }

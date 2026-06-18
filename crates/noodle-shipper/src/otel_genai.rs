@@ -1,8 +1,8 @@
-//! ADR 052 §10 — map a correlated round trip onto OpenTelemetry GenAI semantic
+//! ADR 052 §10 — map a correlated round trip onto OpenTelemetry `GenAI` semantic
 //! conventions. Option (a): the semconv **vocabulary + attribute keys** on the
 //! shipped record.
 //!
-//! The trace tree is our §6 reconstruction, named in GenAI terms:
+//! The trace tree is our §6 reconstruction, named in `GenAI` terms:
 //! - turn → one trace (`trace_id`)
 //! - frame → a span; the agent frame is an `invoke_agent` span, parented by
 //!   `parent_frame_id`
@@ -18,10 +18,10 @@
 
 use std::collections::BTreeSet;
 
-/// The GenAI SemConv version these attribute keys track (§10 version pinning).
+/// The `GenAI` `SemConv` version these attribute keys track (§10 version pinning).
 pub const GENAI_SEMCONV_VERSION: &str = "1.37";
 
-/// The §6 role of a round trip, as it maps onto a GenAI span.
+/// The §6 role of a round trip, as it maps onto a `GenAI` span.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
     /// Depth-0 main agent.
@@ -30,7 +30,7 @@ pub enum Role {
     SubAgent,
 }
 
-/// The correlated round trip the shipper hands to the GenAI mapper. Carries the
+/// The correlated round trip the shipper hands to the `GenAI` mapper. Carries the
 /// §6 marks plus the usage/provider facts needed for the attribute set.
 #[derive(Clone, Debug)]
 pub struct CorrelatedRoundTrip {
@@ -122,7 +122,7 @@ pub fn agent_span(rt: &CorrelatedRoundTrip) -> GenAiSpan {
     }
 }
 
-/// All spans for one turn — the GenAI trace. The shipper groups round trips by
+/// All spans for one turn — the `GenAI` trace. The shipper groups round trips by
 /// `turn_id` and hands each group here; the exporter serializes the result.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Trace {
@@ -178,7 +178,10 @@ mod tests {
     }
 
     fn attr<'a>(s: &'a GenAiSpan, k: &str) -> Option<&'a str> {
-        s.attributes.iter().find(|(key, _)| *key == k).map(|(_, v)| v.as_str())
+        s.attributes
+            .iter()
+            .find(|(key, _)| *key == k)
+            .map(|(_, v)| v.as_str())
     }
 
     #[test]
@@ -192,7 +195,10 @@ mod tests {
         assert_eq!(attr(&s, "gen_ai.provider.name"), Some("anthropic"));
         assert_eq!(attr(&s, "gen_ai.usage.input_tokens"), Some("100"));
         assert_eq!(attr(&s, "gen_ai.usage.output_tokens"), Some("20"));
-        assert_eq!(attr(&s, "gen_ai.usage.cache_read_input_tokens"), Some("865"));
+        assert_eq!(
+            attr(&s, "gen_ai.usage.cache_read_input_tokens"),
+            Some("865")
+        );
         assert_eq!(attr(&s, "gen_ai.request.model"), Some("claude-opus-4-8"));
         assert_eq!(attr(&s, "noodle.activity"), Some("feature-development"));
     }
@@ -225,7 +231,10 @@ mod tests {
     fn cache_read_omitted_when_zero() {
         let mut r = rt();
         r.cache_read_tokens = 0;
-        assert_eq!(attr(&chat_span(&r), "gen_ai.usage.cache_read_input_tokens"), None);
+        assert_eq!(
+            attr(&chat_span(&r), "gen_ai.usage.cache_read_input_tokens"),
+            None
+        );
     }
 
     #[test]
@@ -249,12 +258,20 @@ mod tests {
         assert_eq!(trace.trace_id, "turn-1");
         assert_eq!(trace.session_id, "sess-1");
         // 2 distinct frames (ROOT, agent-xyz) → 2 invoke_agent spans; 3 chat spans
-        let agents = trace.spans.iter().filter(|s| s.operation == "invoke_agent").count();
+        let agents = trace
+            .spans
+            .iter()
+            .filter(|s| s.operation == "invoke_agent")
+            .count();
         let chats = trace.spans.iter().filter(|s| s.operation == "chat").count();
         assert_eq!(agents, 2, "one invoke_agent span per distinct frame");
         assert_eq!(chats, 3, "one chat span per round trip");
         // the sub-agent frame parents to ROOT
-        let sub_span = trace.spans.iter().find(|s| s.span_id == "agent-xyz").unwrap();
+        let sub_span = trace
+            .spans
+            .iter()
+            .find(|s| s.span_id == "agent-xyz")
+            .unwrap();
         assert_eq!(sub_span.parent_span_id.as_deref(), Some("ROOT"));
     }
 
