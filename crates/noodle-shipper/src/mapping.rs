@@ -287,6 +287,9 @@ pub fn row_to_otlp_log(row: &RollupsRow) -> Value {
 /// round-trip is "we (or the proxy on behalf of the agent) called
 /// the model" — that's a client span (`OTel` spec).
 const SPAN_KIND_CLIENT: i64 = 3;
+/// `OTel` span kind 1 = `INTERNAL`. A frame's `invoke_agent` span is internal
+/// work that brackets its round-trips — not a call out to the model.
+const SPAN_KIND_INTERNAL: i64 = 1;
 /// `OTel` span status code 0 = `Unset`, 1 = `Ok`, 2 = `Error`.
 const STATUS_CODE_OK: i64 = 1;
 const STATUS_CODE_ERROR: i64 = 2;
@@ -306,10 +309,10 @@ const STATUS_CODE_ERROR: i64 = 2;
 /// - **`spanId`** (8 bytes) = SHA-256(`event_id`) prefix. Stable
 ///   across re-runs over the same `tap.jsonl` — the embellisher's
 ///   AC #4 idempotency carries through.
-/// - **`parentSpanId`** is omitted in v1. Sibling spans under one
-///   `traceId` is the simplest correct shape; turn-tree hierarchy
-///   (parenting a `tool_use` turn under the `end_turn` that proposed
-///   it) is a future slice.
+/// - **`parentSpanId`** = the frame's `invoke_agent` span
+///   ([`frame_span_id_for`]) when the row is marked (`turn_id` +
+///   `frame_id` present); omitted on legacy/unmarked rows, which stay
+///   flat siblings under the trace (ADR 057 — frame = `invoke_agent` span).
 #[must_use]
 #[allow(clippy::too_many_lines)] // mirror of row_to_otlp_log; attribute set parity is the point
 pub fn row_to_otlp_span(row: &RollupsRow) -> Value {
@@ -348,7 +351,17 @@ pub fn row_to_otlp_span(row: &RollupsRow) -> Value {
         status.insert("message".into(), json!(status_message));
     }
 
-    json!({
+    // Parent the chat span to its frame's `invoke_agent` span when the row is
+    // marked (turn + frame present); legacy/unmarked rows stay flat (no parent).
+    let parent_span_id = match (
+        row.turn_id.as_deref().filter(|s| !s.is_empty()),
+        row.frame_id.as_deref().filter(|s| !s.is_empty()),
+    ) {
+        (Some(turn), Some(frame)) => Some(frame_span_id_for(turn, frame)),
+        _ => None,
+    };
+
+    let mut span = json!({
         "traceId": trace_id,
         "spanId": span_id,
         "name": name,
@@ -357,13 +370,18 @@ pub fn row_to_otlp_span(row: &RollupsRow) -> Value {
         "endTimeUnixNano": end_unix_nano.to_string(),
         "attributes": attributes,
         "status": status,
-    })
+    });
+    if let Some(p) = parent_span_id {
+        span["parentSpanId"] = json!(p);
+    }
+    span
 }
 
 /// SHA-256(`turn_id`) → 16 hex bytes (32 hex chars): **one trace per turn**
 /// (ADR 057 — turn = trace). Falls back to `session_hash`, then `event_id`, so
 /// every row always has a `traceId` even on legacy/unmarked captures.
-fn trace_id_for(row: &RollupsRow) -> String {
+#[must_use]
+pub fn trace_id_for(row: &RollupsRow) -> String {
     let key = row
         .turn_id
         .as_deref()
@@ -374,9 +392,22 @@ fn trace_id_for(row: &RollupsRow) -> String {
     hex_lower(&digest[..16])
 }
 
-/// SHA-256(`event_id`) → 8 hex bytes (16 hex chars).
-fn span_id_for(event_id: &str) -> String {
+/// SHA-256(`event_id`) → 8 hex bytes (16 hex chars). The span id of one
+/// round-trip's `chat` span.
+#[must_use]
+pub fn span_id_for(event_id: &str) -> String {
     let digest = Sha256::digest(event_id.as_bytes());
+    hex_lower(&digest[..8])
+}
+
+/// SHA-256(`frame:<turn_id>:<frame_id>`) → 8 hex bytes (16 hex chars): the
+/// span id of a frame's `invoke_agent` span (ADR 057 — frame = `invoke_agent`
+/// span). Keyed on the turn so the same `frame_id` (notably `"ROOT"`) maps to
+/// a distinct span in every turn's trace; chat spans and the child frames'
+/// `invoke_agent` spans parent to this id.
+#[must_use]
+pub fn frame_span_id_for(turn_id: &str, frame_id: &str) -> String {
+    let digest = Sha256::digest(format!("frame:{turn_id}:{frame_id}").as_bytes());
     hex_lower(&digest[..8])
 }
 
@@ -387,6 +418,66 @@ fn hex_lower(bytes: &[u8]) -> String {
         let _ = write!(s, "{b:02x}");
     }
     s
+}
+
+/// Build the `invoke_agent` span for one frame (ADR 057 — frame = `invoke_agent`
+/// span). It is the parent of every `chat` span in the frame, timed `[start,
+/// end]` to bracket the frame's round-trips (the caller computes the min start
+/// / max end over the frame's rows, in nanos). `rep` is any row of the frame —
+/// they share `turn_id` / `frame_id` / `parent_frame_id` / `role` / `depth`.
+///
+/// Parenting: a sub-agent frame parents to its spawning frame's `invoke_agent`
+/// span (`parent_frame_id` within the same turn); ROOT has no parent and is the
+/// trace's root span.
+#[must_use]
+pub fn frame_agent_span(rep: &RollupsRow, start_unix_nano: i64, end_unix_nano: i64) -> Value {
+    let trace_id = trace_id_for(rep);
+    let turn = rep.turn_id.as_deref().unwrap_or_default();
+    let frame = rep.frame_id.as_deref().unwrap_or("ROOT");
+    let span_id = frame_span_id_for(turn, frame);
+    let parent_span_id = rep
+        .parent_frame_id
+        .as_deref()
+        .filter(|p| !p.is_empty())
+        .map(|p| frame_span_id_for(turn, p));
+
+    let mut attrs = Map::new();
+    attrs.insert("gen_ai.operation.name".into(), kv_str("invoke_agent"));
+    attrs.insert("turn_id".into(), kv_str(turn));
+    attrs.insert("gen_ai.turn.id".into(), kv_str(turn));
+    attrs.insert("frame_id".into(), kv_str(frame));
+    attrs.insert("gen_ai.frame.id".into(), kv_str(frame));
+    if let Some(ref r) = rep.role {
+        attrs.insert("role".into(), kv_str(r));
+        attrs.insert("gen_ai.frame.role".into(), kv_str(r));
+    }
+    if let Some(ref p) = rep.parent_frame_id {
+        attrs.insert("parent_frame_id".into(), kv_str(p));
+        attrs.insert("gen_ai.parent.frame.id".into(), kv_str(p));
+    }
+    if let Some(d) = rep.depth {
+        attrs.insert("depth".into(), kv_int(d));
+        attrs.insert("gen_ai.frame.depth".into(), kv_int(d));
+    }
+    if let Some(ref s) = rep.session_id {
+        attrs.insert("session_id".into(), kv_str(s));
+        attrs.insert("gen_ai.conversation.id".into(), kv_str(s));
+    }
+
+    let mut span = json!({
+        "traceId": trace_id,
+        "spanId": span_id,
+        "name": format!("invoke_agent {frame}"),
+        "kind": SPAN_KIND_INTERNAL,
+        "startTimeUnixNano": start_unix_nano.to_string(),
+        "endTimeUnixNano": end_unix_nano.to_string(),
+        "attributes": attrs.into_iter().map(|(k, v)| json!({ "key": k, "value": v })).collect::<Vec<_>>(),
+        "status": { "code": STATUS_CODE_OK },
+    });
+    if let Some(p) = parent_span_id {
+        span["parentSpanId"] = json!(p);
+    }
+    span
 }
 
 /// Build the per-batch resource-scoped attributes (E4 §B placement
