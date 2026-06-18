@@ -636,16 +636,29 @@ where
         // response wire events. The response is folded into the tree at close
         // (`on_response_close`) via the returned `OpenOutcome`.
         let marking_state = self.markings.as_ref().and_then(|registry| {
-            let session_id =
-                noodle_adapters::marking::anthropic::extract_session_id(&parts.headers)?;
+            // Client-agnostic frame identity (ADR 052 §5), read off the wire:
+            //   Claude Code — stable `x-claude-code-session-id`; a sub-agent adds
+            //     `x-claude-code-agent-id`.
+            //   OpenCode — the frame *is* a session (`x-session-id`); the root of
+            //     the parent chain is the grouping session, and a present
+            //     `x-parent-session-id` marks a sub-agent frame.
+            let header = |k: &str| parts.headers.get(k).and_then(|v| v.to_str().ok());
+            let (session_str, agent_id) = if let Some(cc) = header("x-claude-code-session-id") {
+                (
+                    cc.to_string(),
+                    header("x-claude-code-agent-id").map(str::to_string),
+                )
+            } else if let Some(oc) = header("x-session-id") {
+                match header("x-parent-session-id") {
+                    Some(parent) => (parent.to_string(), Some(oc.to_string())),
+                    None => (oc.to_string(), None),
+                }
+            } else {
+                return None;
+            };
+            let session_id = noodle_core::MarkingSessionId::new(session_str.as_str());
             let mut req_signals = frame_signals::request_signals(&req_bytes);
-            // ADR 052 §5: frame identity is header-driven. A sub-agent round trip
-            // carries `x-claude-code-agent-id`; its absence ⇒ the main frame.
-            req_signals.agent_id = parts
-                .headers
-                .get("x-claude-code-agent-id")
-                .and_then(|v| v.to_str().ok())
-                .map(str::to_string);
+            req_signals.agent_id = agent_id;
             let outcome = registry.on_request_open(&session_id, &req_signals);
             let fm = &outcome.marks;
             let marks = WireMarks {
