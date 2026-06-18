@@ -363,14 +363,15 @@ pub fn row_to_otlp_span(row: &RollupsRow) -> Value {
     })
 }
 
-/// SHA-256(`session_hash`) → 16 hex bytes (32 hex chars). Falls back
-/// to SHA-256(`event_id`) when `session_hash` is None so every row
-/// always has a `traceId`.
+/// SHA-256(`turn_id`) → 16 hex bytes (32 hex chars): **one trace per turn**
+/// (ADR 057 — turn = trace). Falls back to `session_hash`, then `event_id`, so
+/// every row always has a `traceId` even on legacy/unmarked captures.
 fn trace_id_for(row: &RollupsRow) -> String {
     let key = row
-        .session_hash
+        .turn_id
         .as_deref()
         .filter(|s| !s.is_empty())
+        .or_else(|| row.session_hash.as_deref().filter(|s| !s.is_empty()))
         .unwrap_or(&row.event_id);
     let digest = Sha256::digest(key.as_bytes());
     hex_lower(&digest[..16])
