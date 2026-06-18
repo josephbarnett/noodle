@@ -16,6 +16,8 @@
 //! This module is a pure transform with no I/O; wiring it into the OTLP export
 //! path is a separate step.
 
+use std::collections::BTreeSet;
+
 /// The GenAI SemConv version these attribute keys track (§10 version pinning).
 pub const GENAI_SEMCONV_VERSION: &str = "1.37";
 
@@ -120,6 +122,39 @@ pub fn agent_span(rt: &CorrelatedRoundTrip) -> GenAiSpan {
     }
 }
 
+/// All spans for one turn — the GenAI trace. The shipper groups round trips by
+/// `turn_id` and hands each group here; the exporter serializes the result.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Trace {
+    pub trace_id: String,
+    pub session_id: String,
+    pub spans: Vec<GenAiSpan>,
+}
+
+/// Assemble one turn's round trips into its trace: one `invoke_agent` span per
+/// distinct frame (in first-seen order), then one `chat` span per round trip.
+/// Returns `None` for empty input. Callers pass round trips already grouped by
+/// `turn_id`.
+#[must_use]
+pub fn assemble_trace(rts: &[CorrelatedRoundTrip]) -> Option<Trace> {
+    let first = rts.first()?;
+    let mut spans = Vec::with_capacity(rts.len() * 2);
+    let mut seen = BTreeSet::new();
+    for rt in rts {
+        if seen.insert(rt.frame_id.as_str()) {
+            spans.push(agent_span(rt));
+        }
+    }
+    for rt in rts {
+        spans.push(chat_span(rt));
+    }
+    Some(Trace {
+        trace_id: first.turn_id.clone(),
+        session_id: first.session_id.clone(),
+        spans,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,5 +231,35 @@ mod tests {
     #[test]
     fn semconv_version_is_pinned() {
         assert_eq!(GENAI_SEMCONV_VERSION, "1.37");
+    }
+
+    #[test]
+    fn assemble_trace_builds_one_agent_span_per_frame_and_one_chat_per_rt() {
+        let main_rt0 = rt(); // ROOT main, msg_1
+        let mut sub = rt();
+        sub.role = Role::SubAgent;
+        sub.frame_id = "agent-xyz".into();
+        sub.parent_frame_id = Some("ROOT".into());
+        sub.depth = 1;
+        sub.message_id = "msg_2".into();
+        let mut main_rt1 = rt();
+        main_rt1.message_id = "msg_3".into();
+
+        let trace = assemble_trace(&[main_rt0, sub, main_rt1]).unwrap();
+        assert_eq!(trace.trace_id, "turn-1");
+        assert_eq!(trace.session_id, "sess-1");
+        // 2 distinct frames (ROOT, agent-xyz) → 2 invoke_agent spans; 3 chat spans
+        let agents = trace.spans.iter().filter(|s| s.operation == "invoke_agent").count();
+        let chats = trace.spans.iter().filter(|s| s.operation == "chat").count();
+        assert_eq!(agents, 2, "one invoke_agent span per distinct frame");
+        assert_eq!(chats, 3, "one chat span per round trip");
+        // the sub-agent frame parents to ROOT
+        let sub_span = trace.spans.iter().find(|s| s.span_id == "agent-xyz").unwrap();
+        assert_eq!(sub_span.parent_span_id.as_deref(), Some("ROOT"));
+    }
+
+    #[test]
+    fn assemble_trace_empty_is_none() {
+        assert!(assemble_trace(&[]).is_none());
     }
 }
