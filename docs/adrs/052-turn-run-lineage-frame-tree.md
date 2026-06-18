@@ -479,6 +479,122 @@ default.
 
 ---
 
+## 10. OpenTelemetry GenAI alignment
+
+The `session → turn → frame → round-trip` tree this document reconstructs **is** a
+trace tree. So the correlated output maps onto the OpenTelemetry GenAI semantic
+conventions one-for-one, and naming it that way makes the data legible and portable
+to any OTel-native backend without changing how it is captured (§5) or correlated (§6).
+
+### The mapping
+
+| This document | OpenTelemetry GenAI | Notes |
+|---|---|---|
+| session | `session.id` attribute, spanning **many** traces | a correlation dimension, **not** a `trace_id` |
+| **turn** | **one trace (`trace_id`)** | the anchor: turn = unit of cost = one trace |
+| frame (`frame_id` / `parent_frame_id`) | a span; agent frame → `gen_ai.operation.name = invoke_agent`; `parent_frame_id` → parent `span_id` | |
+| round trip | a child span, `gen_ai.operation.name = chat` | the leaf LLM call |
+| `depth` | span nesting depth | |
+| `stop_reason` segmentation | trace boundary (a new turn opens a new trace) | |
+| activity (business-context tag) | a span attribute (`gen_ai.*` or a custom key) | |
+| usage (`tokens`) | span metrics (token counts), rolled up by `trace_id` then `session.id` | turn-level cost = sum of span usage in the trace |
+
+This is the same hierarchy the GenAI conventions describe — `Session → Agent(s) →
+Task(s) → LLM/Tool calls` — with our turn as the trace boundary.
+
+### Caveat — we *emit* OTel shape, we do not *consume* OTel context
+
+OpenTelemetry normally assumes the instrumented application propagates W3C trace
+context (`traceparent`) and emits its own spans. The AI clients here do **not**
+propagate trace context to the provider API — which is exactly why §6 derives the
+tree from structural signals. So the collector **mints** OTel-conformant trace/span
+identifiers from its reconstruction; it does not read them off the wire. Two
+consequences:
+
+- The §5 record stays as-is — content-free wire signals, not OTel spans. The OTel
+  shape is applied at the correlated-output / shipped-record layer, downstream of
+  capture.
+- Claude Code's wire expresses only one nesting level (§5, §6 limits), so a deep
+  agent span tree flattens to depth-1 for that client. A fidelity limit, not a
+  naming one.
+
+### Adoption options
+
+- **(a) Vocabulary + attributes (recommended now).** Name a turn a trace, a session a
+  `session.id`, a frame a span; adopt `gen_ai.*` attribute keys on the shipped record.
+  A naming/schema pass — cheap, and it makes the output consumable by OTel-native
+  backends.
+- **(b) Native OTLP ids (defer).** Mint true 16-byte `trace_id` / 8-byte `span_id`
+  hex so the data exports directly over OTLP. More work; worth it only if direct
+  export to an OTel backend (rather than feeding our own pipeline) is a near-term goal.
+
+### Version pinning
+
+The GenAI LLM-call and tool-call spans (`chat`, `execute_tool`) are the stable part
+of the conventions; the agent/session spans (`invoke_agent`, `session.id`) are still
+maturing. If we commit to attribute keys, pin them to a specific GenAI SemConv
+version (e.g. v1.37) so the mapping stays portable as the spec moves.
+
+---
+
+## 10. OpenTelemetry GenAI alignment
+
+The `session → turn → frame → round-trip` tree this document reconstructs **is** a
+trace tree. So the correlated output maps onto the OpenTelemetry GenAI semantic
+conventions one-for-one, and naming it that way makes the data legible and portable
+to any OTel-native backend without changing how it is captured (§5) or correlated (§6).
+
+### The mapping
+
+| This document | OpenTelemetry GenAI | Notes |
+|---|---|---|
+| session | `session.id` attribute, spanning **many** traces | a correlation dimension, **not** a `trace_id` |
+| **turn** | **one trace (`trace_id`)** | the anchor: turn = unit of cost = one trace |
+| frame (`frame_id` / `parent_frame_id`) | a span; agent frame → `gen_ai.operation.name = invoke_agent`; `parent_frame_id` → parent `span_id` | |
+| round trip | a child span, `gen_ai.operation.name = chat` | the leaf LLM call |
+| `depth` | span nesting depth | |
+| `stop_reason` segmentation | trace boundary (a new turn opens a new trace) | |
+| activity (business-context tag) | a span attribute (`gen_ai.*` or a custom key) | |
+| usage (`tokens`) | span metrics (token counts), rolled up by `trace_id` then `session.id` | turn-level cost = sum of span usage in the trace |
+
+This is the same hierarchy the GenAI conventions describe — `Session → Agent(s) →
+Task(s) → LLM/Tool calls` — with our turn as the trace boundary.
+
+### Caveat — we *emit* OTel shape, we do not *consume* OTel context
+
+OpenTelemetry normally assumes the instrumented application propagates W3C trace
+context (`traceparent`) and emits its own spans. The AI clients here do **not**
+propagate trace context to the provider API — which is exactly why §6 derives the
+tree from structural signals. So the collector **mints** OTel-conformant trace/span
+identifiers from its reconstruction; it does not read them off the wire. Two
+consequences:
+
+- The §5 record stays as-is — content-free wire signals, not OTel spans. The OTel
+  shape is applied at the correlated-output / shipped-record layer, downstream of
+  capture.
+- Claude Code's wire expresses only one nesting level (§5, §6 limits), so a deep
+  agent span tree flattens to depth-1 for that client. A fidelity limit, not a
+  naming one.
+
+### Adoption options
+
+- **(a) Vocabulary + attributes (recommended now).** Name a turn a trace, a session a
+  `session.id`, a frame a span; adopt `gen_ai.*` attribute keys on the shipped record.
+  A naming/schema pass — cheap, and it makes the output consumable by OTel-native
+  backends.
+- **(b) Native OTLP ids (defer).** Mint true 16-byte `trace_id` / 8-byte `span_id`
+  hex so the data exports directly over OTLP. More work; worth it only if direct
+  export to an OTel backend (rather than feeding our own pipeline) is a near-term goal.
+
+### Version pinning
+
+The GenAI LLM-call and tool-call spans (`chat`, `execute_tool`) are the stable part
+of the conventions; the agent/session spans (`invoke_agent`, `session.id`) are still
+maturing. If we commit to attribute keys, pin them to a specific GenAI SemConv
+version (e.g. v1.37) so the mapping stays portable as the spec moves.
+
+---
+
 ## Appendix — data proof tools
 
 ### MITMProxy

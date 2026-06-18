@@ -638,7 +638,14 @@ where
         let marking_state = self.markings.as_ref().and_then(|registry| {
             let session_id =
                 noodle_adapters::marking::anthropic::extract_session_id(&parts.headers)?;
-            let req_signals = frame_signals::request_signals(&req_bytes);
+            let mut req_signals = frame_signals::request_signals(&req_bytes);
+            // ADR 052 §5: frame identity is header-driven. A sub-agent round trip
+            // carries `x-claude-code-agent-id`; its absence ⇒ the main frame.
+            req_signals.agent_id = parts
+                .headers
+                .get("x-claude-code-agent-id")
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string);
             let outcome = registry.on_request_open(&session_id, &req_signals);
             let fm = &outcome.marks;
             let marks = WireMarks {

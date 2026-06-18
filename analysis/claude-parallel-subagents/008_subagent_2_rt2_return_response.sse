@@ -1,0 +1,42 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_01JHFoiGfajb9Lm5kR91kfgp","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":1469,"cache_creation_input_tokens":6255,"cache_read_input_tokens":28925,"cache_creation":{"ephemeral_5m_input_tokens":6255,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard","inference_geo":"global"},"diagnostics":null}        }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}        }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `compose.go` — Shared field-mapping helpers reused by the per-turn composer: context-bag merge, `client_username` f"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"allback chain, install-time identity snapshot, and internal/forward request-signal partitioning.\n- `composeturn.go` — Per-turn r"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ollup logic: turn finality detection via terminal stop reasons and `turnGroup` ordering, composing a"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" finished turn's round trips into one `TelemetryEvent`.\n- `embellish.go` — Package entry point and COMPOSE-"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"stage driver: the poll loop (`New` + `Run(ctx)`) that reads `round_trip_records` by cursor and writes per"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-turn events to `telemetry_events`.\n- `embellish_test.go` — Unit tests for the embellisher, with `RoundTripRec"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ord` fixtures covering single- and multi-round-trip turn composition."}   }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0      }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":1469,"cache_creation_input_tokens":6255,"cache_read_input_tokens":28925,"output_tokens":285,"output_tokens_details":{"thinking_tokens":0},"iterations":[{"input_tokens":1469,"output_tokens":285,"cache_read_input_tokens":28925,"cache_creation_input_tokens":6255,"cache_creation":{"ephemeral_5m_input_tokens":6255,"ephemeral_1h_input_tokens":0},"type":"message"}]},"context_management":{"applied_edits":[]}        }
+
+event: message_stop
+data: {"type":"message_stop"       }
+

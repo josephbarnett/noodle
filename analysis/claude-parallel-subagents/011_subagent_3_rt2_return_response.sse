@@ -1,0 +1,63 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_017P83EohSU2tT99zTw4S2eh","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":3585,"cache_creation_input_tokens":9333,"cache_read_input_tokens":29425,"cache_creation":{"ephemeral_5m_input_tokens":9333,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard","inference_geo":"global"},"diagnostics":null}            }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}    }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `aggregator.go` — Defines the aggregator's construction (Sinks, Options) and the flow-finish ter"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"minal step that mints IDs, resolves Hints, assembles records, and writes to sinks.\n- `aggregator_test.go`"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" — Unit tests for the aggregator using in-memory sink test doubles.\n- `assemble.go` — Builds the pers"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"isted TelemetryEvent and RoundTripRecord from the chain's normalized output, stamping the schema version ("}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"0.0.3).\n- `boundaries.go` — Computes turn/agent-run boundaries: detects tur"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"n-continuation stop_reasons (tool_use, pause_turn) and mints turnID/agentRunID per flow.\n- `bo"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"undaries_test.go` — Tests turn/agent-run boundary detection across scripted round-trip sequences.\n- `clock.go` —"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Defines the Clock interface with RealClock for production and FakeClock for tests (record stamping and S"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"essionState TTL).\n- `doc.go` — Package documentation describing the aggregator's six-step flow-finish responsibilities.\n- `interleaving_test.go` —"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Tests that interleaved parent/sub-agent round trips on one session produce correct correlation IDs.\n- `lineage.go` — T"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"racks sub-agent spawn lineage via the Agent/Task tool-call chain, attributing sub-agent runs to the parent turn/session."}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- `lineage_test.go` — Tests sub-agent lineage matching from spawn tool_use IDs to tool_result resolutions.\n- `session"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"_state.go` — Defines per-agent-run SessionState and its store, holding correlation/l"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ineage state consulted at flow finish.\n- `session_state_test.go` — Tests the SessionStateStore get/set/TTL behavior."}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0      }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":3585,"cache_creation_input_tokens":9333,"cache_read_input_tokens":29425,"output_tokens":587,"output_tokens_details":{"thinking_tokens":0},"iterations":[{"input_tokens":3585,"output_tokens":587,"cache_read_input_tokens":29425,"cache_creation_input_tokens":9333,"cache_creation":{"ephemeral_5m_input_tokens":9333,"ephemeral_1h_input_tokens":0},"type":"message"}]},"context_management":{"applied_edits":[]}     }
+
+event: message_stop
+data: {"type":"message_stop"       }
+

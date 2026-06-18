@@ -1,0 +1,264 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_01DAPCTFdSmyuGzRpAbTYxFx","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":4378,"cache_creation_input_tokens":8383,"cache_read_input_tokens":21042,"cache_creation":{"ephemeral_5m_input_tokens":8383,"ephemeral_1h_input_tokens":0},"output_tokens":4,"service_tier":"standard","inference_geo":"global"},"diagnostics":null}     }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}         }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I'll read"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" all the .go files in parallel."}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0             }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_015mC5eX5so6XsNQ8gnK47jy","name":"Read","input":{},"caller":{"type":"direct"}}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett/company/code"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"/aggregator/aggregator.go"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 40"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"}"}    }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1  }
+
+event: content_block_start
+data: {"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"toolu_01F1R2txi2D6B8CGSK6MKi9V","name":"Read","input":{},"caller":{"type":"direct"}}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":""}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"/aggregator/aggregator_test.go"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 30"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"}"} }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":2              }
+
+event: content_block_start
+data: {"type":"content_block_start","index":3,"content_block":{"type":"tool_use","id":"toolu_01MJ3L5qZjzWoXv2xgnNQMNb","name":"Read","input":{},"caller":{"type":"direct"}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":""}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch/aggreg"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"ator/assemble.go"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 40"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"}"}              }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":3  }
+
+event: content_block_start
+data: {"type":"content_block_start","index":4,"content_block":{"type":"tool_use","id":"toolu_01DARzkqfUXeY2umJfnc2xfa","name":"Read","input":{},"caller":{"type":"direct"}}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":4,"delta":{"type":"input_json_delta","partial_json":""}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":4,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch/aggregator/boundaries."}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":4,"delta":{"type":"input_json_delta","partial_json":"go"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":4,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 40"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":4,"delta":{"type":"input_json_delta","partial_json":"}"} }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":4  }
+
+event: content_block_start
+data: {"type":"content_block_start","index":5,"content_block":{"type":"tool_use","id":"toolu_01DbKrLCpyWuwReJpmAEqak8","name":"Read","input":{},"caller":{"type":"direct"}}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":5,"delta":{"type":"input_json_delta","partial_json":""}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":5,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch/aggregator/boundaries_test.go"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":5,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 30"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":5,"delta":{"type":"input_json_delta","partial_json":"}"}  }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":5           }
+
+event: content_block_start
+data: {"type":"content_block_start","index":6,"content_block":{"type":"tool_use","id":"toolu_01HPMvjXQ4AZcx2h8Be4MDpA","name":"Read","input":{},"caller":{"type":"direct"}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":6,"delta":{"type":"input_json_delta","partial_json":""}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":6,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":6,"delta":{"type":"input_json_delta","partial_json":"Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch/aggregator/clock.go"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":6,"delta":{"type":"input_json_delta","partial_json":"\"}"} }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":6            }
+
+event: content_block_start
+data: {"type":"content_block_start","index":7,"content_block":{"type":"tool_use","id":"toolu_01DTqC2yZUBDbJvsSQSYAxbt","name":"Read","input":{},"caller":{"type":"direct"}}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":7,"delta":{"type":"input_json_delta","partial_json":""}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":7,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett/company/code/cloudzero/feature-ai-collector-"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":7,"delta":{"type":"input_json_delta","partial_json":"macos/proxy/internal/dispatch/aggregator/doc.go"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":7,"delta":{"type":"input_json_delta","partial_json":"\"}"}    }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":7  }
+
+event: content_block_start
+data: {"type":"content_block_start","index":8,"content_block":{"type":"tool_use","id":"toolu_01SqRg4jQ9iLBw1RMNRi8g2v","name":"Read","input":{},"caller":{"type":"direct"}}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":8,"delta":{"type":"input_json_delta","partial_json":""}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":8,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch/aggregator/interleaving_test.go"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":8,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 30"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":8,"delta":{"type":"input_json_delta","partial_json":"}"}            }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":8            }
+
+event: content_block_start
+data: {"type":"content_block_start","index":9,"content_block":{"type":"tool_use","id":"toolu_01EaF7q6m4HZFa1KYeUqZSvv","name":"Read","input":{},"caller":{"type":"direct"}}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":9,"delta":{"type":"input_json_delta","partial_json":""}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":9,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch/aggregator/lineage.go"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":9,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 40"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":9,"delta":{"type":"input_json_delta","partial_json":"}"}       }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":9 }
+
+event: content_block_start
+data: {"type":"content_block_start","index":10,"content_block":{"type":"tool_use","id":"toolu_0166M2gKiLLRJa5x2xAWtV9x","name":"Read","input":{},"caller":{"type":"direct"}}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":10,"delta":{"type":"input_json_delta","partial_json":""}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":10,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/jo"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":10,"delta":{"type":"input_json_delta","partial_json":"e.barnett/company/code/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch/aggregator/lineage_test.go"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":10,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 30"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":10,"delta":{"type":"input_json_delta","partial_json":"}"}             }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":10              }
+
+event: content_block_start
+data: {"type":"content_block_start","index":11,"content_block":{"type":"tool_use","id":"toolu_016gM9oEuKP5o2sS6A3feVXB","name":"Read","input":{},"caller":{"type":"direct"}}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":11,"delta":{"type":"input_json_delta","partial_json":""}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":11,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":11,"delta":{"type":"input_json_delta","partial_json":"/company/code/cloudzero/feature-ai-collector-macos/proxy/internal/dispatch/aggregator/session_state.go"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":11,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 40"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":11,"delta":{"type":"input_json_delta","partial_json":"}"}          }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":11       }
+
+event: content_block_start
+data: {"type":"content_block_start","index":12,"content_block":{"type":"tool_use","id":"toolu_01BwUonbxRyabKZyStu9zyWN","name":"Read","input":{},"caller":{"type":"direct"}}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":12,"delta":{"type":"input_json_delta","partial_json":""}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":12,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/Users/joe.barnett/company/code/clo"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":12,"delta":{"type":"input_json_delta","partial_json":"udzero/feature-ai-collector-macos/proxy/internal/dispatch/aggregator/session_state_test.go"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":12,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 30"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":12,"delta":{"type":"input_json_delta","partial_json":"}"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":12             }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":4378,"cache_creation_input_tokens":8383,"cache_read_input_tokens":21042,"output_tokens":1439,"output_tokens_details":{"thinking_tokens":0},"iterations":[{"input_tokens":4378,"output_tokens":1439,"cache_read_input_tokens":21042,"cache_creation_input_tokens":8383,"cache_creation":{"ephemeral_5m_input_tokens":8383,"ephemeral_1h_input_tokens":0},"type":"message"}]},"context_management":{"applied_edits":[]}           }
+
+event: message_stop
+data: {"type":"message_stop"          }
+
