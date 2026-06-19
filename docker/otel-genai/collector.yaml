@@ -1,0 +1,31 @@
+# otel-collector config (story 061, dev). Receives OTLP/HTTP from the emitter
+# (and, in story 062, the live shipper) and forwards traces to Tempo over OTLP/
+# gRPC. Logs go to the debug exporter only — this dev stack has no log backend;
+# trace reconstruction is the proof.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/tempo, debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

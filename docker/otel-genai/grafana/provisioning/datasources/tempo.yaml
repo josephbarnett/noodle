@@ -1,0 +1,14 @@
+# Auto-provisioned Tempo datasource (story 061, dev). Grafana reads this at
+# startup so Explore → Tempo → TraceQL works with no manual setup.
+apiVersion: 1
+datasources:
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    isDefault: true
+    jsonData:
+      # Tempo's native search; no trace-to-logs/metrics wiring in this dev stack.
+      nodeGraph:
+        enabled: true

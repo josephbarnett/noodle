@@ -15,6 +15,7 @@ members = [
     "crates/noodle-embellish-core",
     "crates/noodle-detect",
     "crates/noodle-tls",
+    "crates/noodle-trace-emitter",
 ]
 
 [workspace.package]
@@ -66,6 +67,7 @@ noodle-cert-external = { path = "crates/noodle-cert-external" }
 noodle-embellish-core = { path = "crates/noodle-embellish-core" }
 noodle-detect = { path = "crates/noodle-detect" }
 noodle-tls = { path = "crates/noodle-tls" }
+noodle-shipper = { path = "crates/noodle-shipper" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
