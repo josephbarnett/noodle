@@ -172,12 +172,13 @@ pub fn build_resource_logs_payload(rows: &[RollupsRow]) -> Value {
 /// - one `chat` span per round-trip ([`row_to_otlp_span`]), parented to its
 ///   frame's `invoke_agent` span when the row is marked;
 /// - one `invoke_agent` span per `(turn_id, frame_id)` ([`frame_agent_span`]),
-///   timed to bracket its round-trips and parented to the spawning frame;
-/// - **side-calls** (`role == "side_call"`, off-tree per ADR 052) are emitted
-///   as logs only — they carry no turn/frame and never enter the span tree.
+///   timed to bracket its round-trips and parented to the spawning frame.
 ///
-/// Legacy/unmarked rows (no `turn_id`/`frame_id`) keep their flat `chat` span
-/// with no parent — the pre-057 shape, preserved for back-compat.
+/// Every row gets a `chat` span. **Side-calls** (`role == "side_call"`, off-tree
+/// per ADR 052) and legacy/unmarked rows carry no `turn_id`/`frame_id`, so their
+/// chat span is parent-less under its own fallback trace (`session_hash` →
+/// `event_id`) — visible in trace UIs but off the turn tree, never gaining an
+/// `invoke_agent` parent.
 #[must_use]
 pub fn build_resource_spans_payload(rows: &[RollupsRow]) -> Value {
     use std::collections::BTreeMap;
@@ -187,13 +188,10 @@ pub fn build_resource_spans_payload(rows: &[RollupsRow]) -> Value {
     let mut frames: BTreeMap<(String, String), (i64, i64, usize)> = BTreeMap::new();
 
     for (idx, row) in rows.iter().enumerate() {
-        // Side-calls are off-tree: logs only, never a span (ADR 052 §5).
-        if row.role.as_deref() == Some("side_call") {
-            continue;
-        }
         spans.push(row_to_otlp_span(row));
 
-        // Accumulate the frame envelope for marked, in-tree rows.
+        // Accumulate the frame envelope for marked, in-tree rows. Side-calls and
+        // unmarked rows have no frame_id, so they never enter the tree here.
         if let (Some(turn), Some(frame)) = (
             row.turn_id.as_deref().filter(|s| !s.is_empty()),
             row.frame_id.as_deref().filter(|s| !s.is_empty()),
@@ -359,9 +357,10 @@ mod tests {
     }
 
     /// ADR 057 — turn = trace, frame = `invoke_agent` span. One turn with the
-    /// main frame (ROOT) + one sub-agent + a side-call. Asserts: side-call
-    /// dropped, two `invoke_agent` spans, chat spans parented to their frame,
-    /// the sub-agent frame parented to ROOT, all under one trace.
+    /// main frame (ROOT) + one sub-agent + a side-call. Asserts: every row gets
+    /// a chat span; two `invoke_agent` spans; in-tree chat spans parent to their
+    /// frame; the sub-agent frame parents to ROOT; the in-tree spans share the
+    /// turn trace; the side-call rides its own trace, parent-less, off the tree.
     #[test]
     fn span_tree_parents_chat_spans_under_invoke_agent_frames() {
         let mut side = make_row("side");
@@ -376,15 +375,12 @@ mod tests {
 
         let chat: Vec<&Value> = all.iter().filter(|s| s["kind"] == 3_i64).collect();
         let agents: Vec<&Value> = all.iter().filter(|s| s["kind"] == 1_i64).collect();
-        // 3 chat spans (side-call dropped) + 2 invoke_agent spans.
-        assert_eq!(chat.len(), 3, "one chat span per non-side-call round-trip");
-        assert_eq!(agents.len(), 2, "one invoke_agent span per (turn, frame)");
-
-        // One trace per turn — every span shares it.
-        let trace = all[0]["traceId"].clone();
-        assert!(
-            all.iter().all(|s| s["traceId"] == trace),
-            "one trace per turn"
+        // 4 chat spans (incl the side-call) + 2 invoke_agent spans.
+        assert_eq!(chat.len(), 4, "every round-trip gets a chat span");
+        assert_eq!(
+            agents.len(),
+            2,
+            "one invoke_agent span per (turn, frame); the side-call has none"
         );
 
         let root_frame = agents.iter().find(|s| is_frame(s, "ROOT")).unwrap();
@@ -399,7 +395,7 @@ mod tests {
             "sub-agent frame ← ROOT frame"
         );
 
-        // Each chat span parents to its own frame's invoke_agent span.
+        // Each in-tree chat span parents to its own frame's invoke_agent span.
         let sub_chat = chat.iter().find(|s| is_frame(s, "agent-7")).unwrap();
         let root_chat = chat.iter().find(|s| is_frame(s, "ROOT")).unwrap();
         assert_eq!(
@@ -409,6 +405,27 @@ mod tests {
         assert_eq!(
             root_chat["parentSpanId"], root_frame["spanId"],
             "ROOT chat ← ROOT invoke_agent frame"
+        );
+
+        // The turn's spans share one trace.
+        let turn_trace = root_frame["traceId"].clone();
+        for s in [root_chat, sub_chat, *root_frame, *sub_frame] {
+            assert_eq!(s["traceId"], turn_trace, "in-tree span on the turn trace");
+        }
+
+        // The side-call: its own chat span, off the turn tree — different trace,
+        // no parent (it has no frame_id attribute at all).
+        let side_chat = chat
+            .iter()
+            .find(|s| !is_frame(s, "ROOT") && !is_frame(s, "agent-7"))
+            .expect("side-call chat span present");
+        assert!(
+            side_chat.get("parentSpanId").is_none(),
+            "side-call span is parent-less"
+        );
+        assert_ne!(
+            side_chat["traceId"], turn_trace,
+            "side-call rides its own trace, off the turn tree"
         );
     }
 }
