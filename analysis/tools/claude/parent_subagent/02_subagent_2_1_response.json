@@ -1,0 +1,45 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_01L7ekxDBXxy5tryCeRzfrYz","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":4378,"cache_creation_input_tokens":8274,"cache_read_input_tokens":21046,"cache_creation":{"ephemeral_5m_input_tokens":8274,"ephemeral_1h_input_tokens":0},"output_tokens":37,"service_tier":"standard","inference_geo":"global"},"diagnostics":null}            }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_01H7NhXQqHtHbXqmcPXWV4vk","name":"Bash","input":{},"caller":{"type":"direct"}}           }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"cd /Users/joe.bar"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"nett/company/code/cloudzero/feature-"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"ai-collector-macos/proxy/internal/dispatch/sinks/sqlite/ && for f in doc.go round_trip_record_sink.go round_tr"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"ip_record_sink_test.go side_effect_sink.go side_effect_sink_test.go sqlite.go telemetry_event_sink.go telemetry_event_sink_test.go testsup"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"port_test.go; do echo \\\"===== $f =====\\\"; head -40 \\\"$f\\\"; echo; done"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\", \"description\": \"Print top"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":" of each Go file"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"}"}       }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":4378,"cache_creation_input_tokens":8274,"cache_read_input_tokens":21046,"output_tokens":247,"output_tokens_details":{"thinking_tokens":0},"iterations":[{"input_tokens":4378,"output_tokens":247,"cache_read_input_tokens":21046,"cache_creation_input_tokens":8274,"cache_creation":{"ephemeral_5m_input_tokens":8274,"ephemeral_1h_input_tokens":0},"type":"message"}]},"context_management":{"applied_edits":[]}      }
+
+event: message_stop
+data: {"type":"message_stop"}
+

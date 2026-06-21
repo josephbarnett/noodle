@@ -247,6 +247,26 @@ fn extract_marking_ids(req_marks: Option<&Value>, resp_marks: Option<&Value>) ->
     }
 }
 
+/// True when `path` is a recognized generative-AI **inference** endpoint —
+/// the only traffic that becomes an `ai_telemetry` round-trip. Mirrors the
+/// shipper's `operation_name_from_path` recognition set so dispatch and the
+/// `OTel` mapping agree on what counts as a model call. Everything else the
+/// forward proxy taps (MCP `/v1/mcp/…`, `/api/*`, OAuth, MCP registry) is
+/// off-pipeline.
+fn is_inference_endpoint(path: &str) -> bool {
+    let base = path.split('?').next().unwrap_or(path);
+    matches!(
+        base,
+        "/v1/messages"
+            | "/v1/chat/completions"
+            | "/v1/responses"
+            | "/v1/completions"
+            | "/v1/embeddings"
+    ) || base.ends_with(":generateContent")
+        || base.ends_with(":streamGenerateContent")
+        || base.ends_with(":embedContent")
+}
+
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn map_pair(request: &TapEntryView, response: &TapEntryView) -> Option<TelemetryRow> {
@@ -268,6 +288,18 @@ pub fn map_pair(request: &TapEntryView, response: &TapEntryView) -> Option<Telem
     // ─── endpoint path / params ───────────────────────────────────
     let url = request.url().unwrap_or("");
     let (endpoint_path, endpoint_params_json) = split_url(url);
+
+    // ─── dispatch gate (ADR 031 §5) ───────────────────────────────
+    // The proxy is a forward proxy: with `HTTPS_PROXY` set it taps ALL of
+    // the client's HTTPS — model inference *and* MCP tool servers
+    // (`/v1/mcp/…`), OAuth, eval, and `/api/*` control-plane. Only
+    // model-inference round-trips are `ai_telemetry`; everything else is
+    // off-pipeline. Without this gate those calls become orphan rows →
+    // provider-named spans with no turn/frame. Skip them at the source so
+    // `rollups.db` and the trace tree carry inference only.
+    if !is_inference_endpoint(&endpoint_path) {
+        return None;
+    }
 
     // ─── model (from request body) ─────────────────────────────────
     let model = request
@@ -525,6 +557,18 @@ pub fn map_decoded_pair(pair: &DecodedPair) -> Option<TelemetryRow> {
     // ─── endpoint path / params ───────────────────────────────────
     let url = request.url().unwrap_or("");
     let (endpoint_path, endpoint_params_json) = split_url(url);
+
+    // ─── dispatch gate (ADR 031 §5) ───────────────────────────────
+    // The proxy is a forward proxy: with `HTTPS_PROXY` set it taps ALL of
+    // the client's HTTPS — model inference *and* MCP tool servers
+    // (`/v1/mcp/…`), OAuth, eval, and `/api/*` control-plane. Only
+    // model-inference round-trips are `ai_telemetry`; everything else is
+    // off-pipeline. Without this gate those calls become orphan rows →
+    // provider-named spans with no turn/frame. Skip them at the source so
+    // `rollups.db` and the trace tree carry inference only.
+    if !is_inference_endpoint(&endpoint_path) {
+        return None;
+    }
 
     // ─── model (from request body) ─────────────────────────────────
     let model = request
@@ -1456,5 +1500,61 @@ mod tests {
         let pair = crate::decoded::decode_pair(req, resp);
         let row = map_decoded_pair(&pair).expect("row");
         assert_eq!(row.provider, "openai");
+    }
+
+    fn pair_for_url(url: &str) -> DecodedPair {
+        let req = TapEntryView::from_value(json!({
+            "direction": "request",
+            "timestamp": "2026-05-25T17:00:00.000Z",
+            "event_id": "gate",
+            "provider": "anthropic",
+            "method": "POST",
+            "url": url,
+            "headers": {},
+            "body": {}
+        }));
+        let resp = TapEntryView::from_value(json!({
+            "direction": "response",
+            "timestamp": "2026-05-25T17:00:01.000Z",
+            "event_id": "gate",
+            "provider": "anthropic",
+            "status": 200,
+            "headers": {}
+        }));
+        crate::decoded::decode_pair(req, resp)
+    }
+
+    #[test]
+    fn map_decoded_pair_skips_non_inference_endpoints() {
+        // ADR 031 §5 dispatch gate: the forward proxy taps MCP tool calls,
+        // OAuth, and /api/* control-plane, but those are not model inference
+        // and must not become ai_telemetry round-trips.
+        for url in [
+            "https://api.anthropic.com/v1/mcp/mcpsrv_015XafxXr4AzJbzWUmxahkFN",
+            "https://api.anthropic.com/v1/mcp_servers",
+            "https://api.anthropic.com/mcp-registry/v0/servers",
+            "https://api.anthropic.com/api/claude_code_penguin_mode",
+            "https://api.anthropic.com/api/oauth/account/settings",
+        ] {
+            assert!(
+                map_decoded_pair(&pair_for_url(url)).is_none(),
+                "{url} is not inference — must be skipped"
+            );
+        }
+    }
+
+    #[test]
+    fn map_decoded_pair_keeps_inference_endpoints() {
+        for url in [
+            "https://api.anthropic.com/v1/messages",
+            "https://api.anthropic.com/v1/messages?beta=true",
+            "https://api.openai.com/v1/chat/completions",
+            "https://generativelanguage.googleapis.com/v1/models/gemini:generateContent",
+        ] {
+            assert!(
+                map_decoded_pair(&pair_for_url(url)).is_some(),
+                "{url} is inference — must be kept"
+            );
+        }
     }
 }

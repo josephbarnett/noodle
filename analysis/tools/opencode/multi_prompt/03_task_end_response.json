@@ -1,0 +1,312 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_01QW7fE9tjvhnyNWqSnj7ruJ","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":436,"cache_read_input_tokens":55406,"cache_creation":{"ephemeral_5m_input_tokens":436,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard","inference_geo":"global"}}   }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}       }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" have all the information needed to produce a thorough report.\n\n---\n\n# Round-Trip Tracking in c"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"z-monitor — Findings\n\n**Important architectural note:** There is **no `proxy/internal"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"/inspector/` directory**. The round-trip logic lives in two places: the go-mitmproxy addon shim"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" in `proxy/internal/addon/` and the dispatch runtime + aggregator under `proxy/internal/dispatch/`. As of \""} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"slice 9\" the addon is a thin shim; all correlation/timing/event assembly happens in the aggregator.\n\nThe go-mitmproxy"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `Addon` interface hooks are defined in `/Users/joe.barnett/go/pkg/mod/github.com/lqqyt2423/go-mitmproxy@v1.8.11/pro"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"xy/addon.go` (lines 28–58): `Request`, `Response`, `StreamResponseModifier`, `SSEEnd`, etc.\n\n##"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" 1. Where request and response are intercepted (go-mitmproxy hooks)\n\nAll hooks are impl"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"emented on `TelemetryAddon` in **`proxy/internal/addon/telemetry.go`**, each delegating to `dispatchV2Handlers`:"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\n| Hook | telemetry.go | delegates to (dispatch_v2.go) |\n|------|-------------|-------------------------------|\n| `ShouldInterc"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ept(req)` — TLS CONNECT decision, host-only | line **"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"125-127** | `ShouldIntercept` line **88-111** |\n| `Request(f)` — request int"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ercept | line **130-132** | `OnRequest` line **117-190** |\n| `StreamResponseModifier(f, in)` — w"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"raps SSE response reader | line **137-143** | `TeeResponseReader` (dispatch_v2_strip.go line **42"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-87**) |\n| `SSEEnd(f)` — streaming response end | line **147-152** | `OnSSEEnd` → `finish"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Flow(f, true)` line **195-197** |\n| `Response(f)` — non-streaming response | line **157-166"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"** | `OnResponse` → `finishFlow(f, false)` line **201-203** |\n\n- **Request interception:** `OnRequest` in **`proxy/internal/addon/dispatch_v"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"2.go:117`**. It resolves the dispatch chain, captures the tim"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"estamp, runs the request codec chain, and stashes per-flow context.\n- **Response interception"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":":** `finishFlow` in **`proxy/internal/addon/dispatch_v2.go:208`** (shared by both `OnResponse` and `OnSSEEnd`)."}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\n## 2. How request and response are correlated\n\nCorrelation across the request/response hooks uses a **`sync.Map` keyed by the m"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"itmproxy flow ID**:\n\n- The map: `dispatchV2Handlers.flows sync.Map // flowID -> *v2FlowContext` — **"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"`dispatch_v2.go:48`**.\n- Per-flow state struct `v2FlowContext` — **`dispatch_v2.go:31-42"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"`** (holds `flow`, `state`, `startedAtUnixMs`, `normalizedReq`, `systemHash`, and the `responseBuff"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"er`).\n- **Stored** at the end of `OnRequest`: `h.flows.Store(f.Id, ctx)` — **`dispatch_v2."}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"go:189`**.\n- **Looked up + removed** at response time: `h.flows.LoadA"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ndDelete(f.Id)` — **`dispatch_v2.go:209`**.\n- `f.Id` is the go-mitmproxy `Flow.Id` ("}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"`uuid.UUID`, defined at `flow.go:108-126` in"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the module cache). Note: the addon comment at `dispatch_v2.go:48` says `uint32`, but the actual type is a UUID.\n\nHigher-"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"level correlation (session/turn/agent-run IDs across multiple round trips) is minted later"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" in the aggregator (`OnFlowFinish`, **`aggregator.go:243-274`**) via"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `MintCorrelationIDs`, keyed by `flow.SessionID` + `SystemHash`.\n\n## 3. How latency/"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"timing (latency_ms) is measured\n\n- **Start timestamp** captured in `OnRequest`: `now := time.Now().UnixMilli()` — **`"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"dispatch_v2.go:128`**. Stored into `v2FlowContext.startedAtUnixMs` (**line 166"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**) and also onto the dispatch `Flow.OpenedAtUnixMs` (**line 136**).\n- **End timestamp** captured in"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the aggregator at flow finish: `now := a.clock.NowUnixMs()` — **`aggregator.go:241`** (u"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ses an injectable `Clock`; default `RealClock` in `proxy/internal/dispatch/aggregator/clock.go`).\n- `startedAtUnix"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Ms` is threaded into the aggregator via `FinishInput.StartedAtUnixMs` — set at **`dispatch_v"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"2.go:330`**, field defined at **`aggregator.go:212-214`**.\n- **Latency computed"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"** in two places in **`proxy/internal/dispatch/aggregator/assemble.go`**:\n  - `TelemetryEvent.LatencyMs`"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":": `latencyMs := int(now - startedAtMs)` (clamped ≥ 0) — **assemble.go:42-45**,"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" assigned at line **65**.\n  - `RoundTripRecord.DurationMs`: `durationMs := completedAtMs - startedAtMs` (clamped"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" ≥ 0) — **assemble.go:122-126**, with `StartedAtMs`/`CompletedAtMs`/`DurationMs` set at lines"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" **135-137**.\n\n## 4. How the telemetry event is assembled (request vs. response fields)\n\nTwo records are built. The"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" orchestrator is `Aggregator.OnFlowFinish` in **`proxy/internal/dispatch/aggregator/aggregator.go:234"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-517`**.\n\n**`assembleRoundTripRecord`** — **`assemble.go:109-220`** (the faithful cap"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ture record, always written):\n- From the **response** (`NormalizedEvent ne`): `Usage` tokens (input/output/cache read"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"/cache creation), `EstimatedCostUSD`, `CostModelVersion` (lines 140-147);"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `ResponseExtras` (151); `ResponseStopReason`/`ResponseComplete` from `ne.StopReason` (199"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-200); `ToolsInvoked`/`ToolsResolved` from `ne.ContentBlocks` (203-217).\n- From the **request** (`flow` +"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `NormalizedRequest nr`): `RequestHost`, `RequestEndpoint`, `RequestMethod`, `RequestUserAgent` (155-160); `RequestExtras"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"` (150); `RequestModel` prefers `nr.Model`, falls back to `ne.Model` (168-173).\n- From hoo"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ks: `ResponseStatus` (187), `ResponseKind` \"sse\"/\"json\" from `streaming` (188-192"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"), `DirectiveInjected` (165).\n- Timing: `StartedAtMs`/`CompletedAtMs`/`DurationM"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"s` (135-137).\n\n**`assembleTelemetryEvent`** — **`assemble.go:30-103`** (the shipped `api_"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"call` event; in production written `nil` and composed asynchronously by the embellisher — see `"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"aggregator.go:90-94, 456-467`):\n- From **response** `ne`: `Provider`, `Model"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"`, token counts, cost (52-59); `provider_metadata` bag from `ne.Extras` + prov"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ider + domain (87-101).\n- From **request**: `UserAgent` and `EndpointPath` from `flow` (69"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-71); `UserID` from `nrExtras[\"metadata_user_id\"]` (72-76).\n- From hooks:"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `StatusCode`, `LatencyMs`, `Streaming` (64-66).\n\nToken/byte usage orig"}              }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"in: `request_bytes` captured in `OnRequest` (**dispatch_v2.go:182-187"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**) and `response_bytes` in `finishFlow` (**dispatch_v2.go:313-320**), gated on the cell's `usage_unit:"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" bytes`. Response header signals (e.g. request id) captured via `anthropic_messages.CaptureResponseHeaders` at"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" **dispatch_v2.go:312**.\n\n## 5. Streaming responses (SSE) handling\n\nLLM token streaming is handled with"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" a tee-and-buffer approach:\n\n- **`StreamResponseModifier`** (telemetry.go:137-143) only wraps respon"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ses with `Content-Type: text/event-stream`; otherwise returns the reader unchanged.\n- **`TeeResponseReader`** —"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" **`proxy/internal/addon/dispatch_v2_strip.go:42-87`**: looks up the per-flow `v2FlowContext`"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" and returns either:\n  - a passive `io.TeeReader(in, ctx.responseBuffer)` (strip inactive) — line"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" **51**, or\n  - a `stripReader` that still tees raw bytes into `ctx.responseBuffer"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"` while stripping `<cz:` markers from the client copy (strip active) — line **86**.\n  - For SSE, the strip must operate on pl"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"aintext, so it streams-decompresses gzip/brotli/deflate/zstd via `decompressStream` (**dispatch_v2_str"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ip.go:160-178**) and deletes `Content-Encoding`/`Content-Length` (lines 64-78).\n- **`SSE"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"End`** (telemetry.go:147-152) fires after the full stream completes, calling `OnSSEEnd` → `finishFlow(f, true)` (**dispatch_"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"v2.go:195-197**).\n- In `finishFlow`, streaming bytes come from the captured tee buffer: `response"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Bytes = ctx.responseBuffer.Bytes()` when `streaming` (**dispatch_v2.go:226-227**); non-streaming re"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ads `f.Response.Body` directly (228-230). Buffered bytes are decompressed at fin"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ish via `decompressByEncoding` (**dispatch_v2.go:237-248**, function at d"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ispatch_v2_strip.go:121-152) before the SSE frame codec parses them.\n- Non-"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"SSE responses are explicitly excluded from `SSEEnd`/included in `Response` by"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the `text/event-stream` check in `Response` (**telemetry.go:161-165**), preventing double-"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"processing.\n- `Streaming`/`ResponseKind` propagate into the records: `FinishInput.Strea"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ming` (aggregator.go:206-210, set at dispatch_v2.go:329), `TelemetryEvent.Streaming` (ass"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"emble.go:66), `RoundTripRecord.ResponseKind` = \"sse\"/\"json\" (assemble.go:188-192). `ResponseComplete` (assemble.go:199) fl"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ags streams cut short (empty `stop_reason`) so consumers can filter aborted streams.\n\n## Key file/"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"line summary\n\n| Concern | File:Line |\n|---------|-----------|\n| Addon hook sh"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ims | `proxy/internal/addon/telemetry.go:125-166` |\n| Request intercept | `proxy/internal/addon/dispatch_v2.go:117"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"` (`OnRequest`) |\n| Response intercept (shared) | `proxy/internal/addon/dispatch_v2.go:208` (`finishFl"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ow`) |\n| Flow correlation map | `proxy/internal/addon/dispatch_v2.go:48`; store `:189`, load `:209"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"` |\n| Start timestamp | `proxy/internal/addon/dispatch_v2.go:128` |\n| End timestamp | `proxy/internal/dispatch/aggregator/aggreg"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ator.go:241` |\n| latency_ms / duration_ms | `proxy/internal/dispatch/aggregator/assemble.go:42-45`, `:122-126` |\n| Event assemb"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ly | `proxy/internal/dispatch/aggregator/assemble.go:30` & `:109` |\n| Aggregator orchestration |"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `proxy/internal/dispatch/aggregator/aggregator.go:234` (`OnFlowFinish`) |\n| SSE tee/buffer + dec"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ompress | `proxy/internal/addon/dispatch_v2_strip.go:42`, `:121`, `:160` |\n| Wiring ("}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hooks registered) | `proxy/cmd/cz-monitor/main.go:276-277` |\n| go-mitmproxy hook interface | `…"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"/go-mitmproxy@v1.8.11/proxy/addon.go:28-58` |"}         }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0       }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":2,"cache_creation_input_tokens":436,"cache_read_input_tokens":55406,"output_tokens":4195,"output_tokens_details":{"thinking_tokens":0}}               }
+
+event: message_stop
+data: {"type":"message_stop"              }
+

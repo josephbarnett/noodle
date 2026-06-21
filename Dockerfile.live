@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+#
+# proxy + embellish local build — the two binaries in the live marks pipeline
+# (proxy stamps §5 marks into tap.jsonl; embellish persists them to rollups.db).
+# Both pull `rama`, so jobs are bounded to fit the (now 8 GB) lima build VM —
+# the full 4-binary build still OOMs without headroom.
+#
+#   nerdctl --namespace k8s.io build -f Dockerfile.live --target proxy     -t noodle-proxy:local-hier .
+#   nerdctl --namespace k8s.io build -f Dockerfile.live --target embellish -t noodle-embellish:local-hier .
+FROM rust:1.95-bookworm AS build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        cmake clang perl pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY . .
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/target \
+    CARGO_BUILD_JOBS=4 cargo build --release --bin noodle --bin noodle-embellish \
+ && mkdir -p /out \
+ && cp target/release/noodle target/release/noodle-embellish /out/
+
+FROM gcr.io/distroless/cc-debian12:nonroot AS proxy
+COPY --from=build /lib/aarch64-linux-gnu/libz.so.1 /lib/aarch64-linux-gnu/libz.so.1
+COPY --from=build /out/noodle /usr/local/bin/noodle
+EXPOSE 62100 9091
+ENTRYPOINT ["/usr/local/bin/noodle"]
+
+FROM gcr.io/distroless/cc-debian12:nonroot AS embellish
+COPY --from=build /out/noodle-embellish /usr/local/bin/noodle-embellish
+ENTRYPOINT ["/usr/local/bin/noodle-embellish"]

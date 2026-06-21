@@ -190,7 +190,14 @@ fn row_from(path: &Path, base_ms: i64, seq: i64, v: &Value, marks: &FrameMarks) 
         policy_rule: None,
         policy_rationale: None,
         policy_surface: None,
-        turn_id: marks.turn_id.clone(),
+        // Prefix the detector's turn id with the run's base clock so each emit
+        // produces a fresh trace id (the SHA of turn_id) — otherwise repeated
+        // emits of the same capture collapse into one ever-growing trace with a
+        // stale start time, invisible to "recent" queries.
+        turn_id: marks
+            .turn_id
+            .as_deref()
+            .map(|t| format!("r{base_ms}-{t}")),
         role: Some(marks.role.as_str().to_owned()),
         frame_id: marks.frame_id.clone(),
         parent_frame_id: marks.parent_frame_id.clone(),

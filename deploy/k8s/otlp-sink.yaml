@@ -1,8 +1,42 @@
-# Mock OTLP collector for the proof — runs demos/otlp_sink.py, captures
-# every POST /v1/logs, and logs one line per batch to stderr (visible
-# via `kubectl logs`). The shipper points at the `noodle-otlp-sink`
-# Service. The script is mounted from the `noodle-otlp-sink-script`
-# ConfigMap, which deploy.sh builds from demos/otlp_sink.py.
+# OTLP sink for the gateway — the real otel-collector (story 061/062). Swaps
+# the earlier Python mock in place: same Deployment + Service name
+# (`noodle-otlp-sink`) and port (4318), so the gateway's shipper
+# (`--endpoint http://noodle-otlp-sink:4318`) keeps shipping with no change and
+# no gateway roll. The collector forwards traces to Tempo (see observability.yaml).
+# Config is mounted from the `noodle-collector-config` ConfigMap below.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: noodle-collector-config
+  namespace: noodle
+  labels: { app: noodle-otlp-sink }
+data:
+  collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      batch: {}
+    exporters:
+      otlp/tempo:
+        endpoint: noodle-tempo:4317
+        tls:
+          insecure: true
+      debug:
+        verbosity: basic
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/tempo, debug]
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [debug]
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,20 +52,19 @@ spec:
       labels: { app: noodle-otlp-sink }
     spec:
       volumes:
-        - name: script
-          configMap: { name: noodle-otlp-sink-script }
+        - name: config
+          configMap: { name: noodle-collector-config }
       containers:
-        - name: sink
-          image: python:3.12-slim
-          command: ["python", "/app/otlp_sink.py", "--host", "0.0.0.0", "--port", "4318", "--ui-port", "8080", "--dest", "/tmp/otlp-bodies"]
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:0.116.1
+          args: ["--config=/etc/collector.yaml"]
           ports:
             - { name: otlp, containerPort: 4318 }
-            - { name: ui,   containerPort: 8080 }
           volumeMounts:
-            - { name: script, mountPath: /app, readOnly: true }
+            - { name: config, mountPath: /etc/collector.yaml, subPath: collector.yaml, readOnly: true }
           resources:
-            requests: { cpu: "20m", memory: "32Mi" }
-            limits: { cpu: "200m", memory: "128Mi" }
+            requests: { cpu: "50m", memory: "96Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
 ---
 apiVersion: v1
 kind: Service
@@ -44,4 +77,3 @@ spec:
   selector: { app: noodle-otlp-sink }
   ports:
     - { name: otlp, port: 4318, targetPort: 4318 }
-    - { name: ui,   port: 8080, targetPort: 8080 }
