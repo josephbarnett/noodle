@@ -277,6 +277,7 @@ function renderItem(
           rtIndex={it.rtIndex}
           rtTotal={it.rtTotal}
           ts={it.ts}
+          usage={it.usage}
         />
       );
     case "thinking":
