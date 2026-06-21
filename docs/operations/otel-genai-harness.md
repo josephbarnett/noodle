@@ -75,6 +75,51 @@ Other useful TraceQL:
 | `{ .gen_ai.frame.role = "side_call" }` | off-tree side-calls (own single-span traces) |
 | `{ .gen_ai.usage.output_tokens > 1000 }` | high-output round-trips |
 
+## Verified — live in-cluster (2026-06-21)
+
+The chain is proven end-to-end against the **real product**, not just the offline
+emitter. Deployment: a `rancher-desktop` (k3s) cluster, namespace `noodle` —
+`noodle-gateway` pod (containers `proxy` / `embellish` / `shipper` / `viewer`),
+`noodle-otlp-sink` collector, `noodle-tempo`, `noodle-grafana`. The shipper image
+is `noodle-shipper:local-hier` (the turn-grouped hierarchical span builder), args
+`--db /home/nonroot/.noodle/rollups.db --endpoint http://noodle-otlp-sink:4318
+--poll-secs 5`.
+
+A live Claude Code session (with parallel `Task` sub-agents) driven through the
+proxy produced, in Tempo, a per-turn trace tree. Example turn trace
+`45f52e1569dbb7257dbac272ae3d7a8a` — **3 `invoke_agent` spans + 7 `chat` spans**:
+
+```
+invoke_agent ROOT
+├─ chat claude-opus-4-8                    (ROOT's own round-trip)
+├─ invoke_agent a783ac27e8361af43          (sub-agent frame, parent = ROOT)
+│  ├─ chat × 3
+└─ invoke_agent afd663a7bfc453b0b          (sub-agent frame, parent = ROOT)
+   └─ chat × 3
+```
+
+Sub-agent frame ids are the real `x-claude-code-agent-id` values nesting under
+ROOT; side-calls (quota / title / monitor) appear as **standalone single-span
+`chat` traces** off the turn tree, as designed. Shipper delivery was clean —
+`tick complete claimed=N delivered=N failed=0` across ticks. `context.*`
+(ADR 056) and `brain.*` (ADR 047) attributes ride the spans
+(`/api/search/tags` includes `context.cache_read_tokens`, `context.preamble_bytes`,
+`context.tool`, etc.).
+
+Headless re-check (from inside the cluster):
+
+```sh
+kubectl exec -n noodle deploy/noodle-tempo -- \
+  wget -qO- 'http://localhost:3200/api/search?limit=10'        # turn traces
+kubectl exec -n noodle deploy/noodle-tempo -- \
+  wget -qO- 'http://localhost:3200/api/traces/<traceID>'        # full span tree
+kubectl logs -n noodle deploy/noodle-gateway -c shipper --tail=10 # delivered=N failed=0
+```
+
+> Note: the dev `docker/otel-genai` Tempo uses `local` storage on an `emptyDir` —
+> traces are lost on pod reschedule. Fine for dev verification; durable storage
+> is the production collector's concern ([ADR 044](../features/044-otel-collector-separate-repo.md)).
+
 ## Teardown
 
 ```sh
