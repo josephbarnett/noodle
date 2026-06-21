@@ -1,0 +1,28 @@
+[package]
+name = "noodle-trace-emitter"
+description = "Dev-only offline OTLP trace emitter — replays a committed capture through the real frame-tree detector + shipper exporter so a reconstructed GenAI trace is viewable in Grafana/Tempo without a live proxy run (story 061, ADR 057)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "noodle-trace-emitter"
+path = "src/main.rs"
+
+[dependencies]
+# The real frame-tree detector (ADR 052 §5) — the emitter reconstructs
+# marks exactly as the proxy does, not a reimplementation.
+noodle-adapters.workspace = true
+# The production OTLP exporter + RollupsRow + span builder (story 060).
+# Reusing it is the point: the emitter exercises the real artifact.
+noodle-shipper.workspace = true
+
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+
+[lints]
+workspace = true

@@ -1,0 +1,135 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_011LqJVumyQCbNb2DfBkXwZH","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":23437,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":23437,"ephemeral_1h_input_tokens":0},"output_tokens":4,"service_tier":"standard","inference_geo":"global"}}         }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}           }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Here's how"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" cz-monitor tracks round trips (request ↔ response correlation + timing → telemetry event).\n\n## The"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" mechanism in a nutshell\n\nIt hooks into go-mitmproxy's addon lifecycle callb"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"acks, stashes per-request state in a map keyed by the proxy's flow ID, then reconciles request"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" and response when the flow finishes.\n\n## 1. Hooking the lifecycle\n\n`TelemetryAddon` (`"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"proxy/internal/addon/telemetry.go:125-166`) implements go-mitmproxy's `Addon` interface, delegating each hook to d"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ispatch handlers:\n\n| Hook | Fires when | Handler |\n|------|-----------|---------|\n| `ShouldI"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ntercept` | TLS CONNECT decision (host-only) | `dispatch_v2.go:88` |\n| `Request` | Request seen | `OnRequest"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"` `dispatch_v2.go:117` |\n| `StreamResponseModifier` | SSE response body op"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ens | `TeeResponseReader` |\n| `SSEEnd` | Streaming response finishes | `finishFlow(f, true)` |\n| `Response` | Non-strea"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ming response done | `finishFlow(f, false)` |\n\n## 2. Correlating request with response\n\nThe key insight: request and response arrive in **separate callbacks**, so"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" state must be carried across them. It uses a `sync.Map` keyed by the go-mitmproxy flow ID (`f.Id`, a UUID):"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\n- `dispatchV2Handlers.flows sync.Map` — `dispatch_v2.go:48`\n- A per-flow stru"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ct `v2FlowContext` holds the start time, normalized request, session hash, and a response buffer — `dispatch_v2.go:31-42`\n- **Stored** at end"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" of `OnRequest`: `h.flows.Store(f.Id, ctx)` — `dispatch_v2.go:189`\n- **Loaded + deleted** at response:"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `h.flows.LoadAndDelete(f.Id)` — `dispatch_v2.go:209`\n\nSo one round trip = one flow ID, matched store"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"→load.\n\n## 3. Measuring latency\n\n- **Start:** captured in `OnRequest` — `now := time.Now()."}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"UnixMilli()` at `dispatch_v2.go:128`, saved to `ctx.startedAtUnixMs`.\n- **End:** capt"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ured at flow finish in the aggregator — `aggregator.go:241` (via an injectable `Clock`, so tests can fake time"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":").\n- **Computed:** `latencyMs := int(now - startedAtMs)` (clamped ≥ 0) in `assemble.go:42-"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"45`. The faithful `RoundTripRecord` separately computes `DurationMs` — `assemble.go:122-126`.\n\n## 4"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":". Assembling the telemetry event\n\nAt finish, `Aggregator.OnFlowFinish` (`aggregator.go:234`) builds two records,"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" pulling fields from each side of the trip:\n\n- **From the request:** host, endpoint path, method, user"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-agent, request model, request bytes.\n- **From the response:** token usage (input/output/cache read"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"/cache creation), estimated cost, stop reason, tools invoked, status code, response bytes.\n- **From the hooks/timing:** lat"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ency, streaming flag, start/end timestamps.\n\nIt also mints higher-level correlation IDs (session/turn/agent-run) that link"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" *multiple* round trips together — `MintCorrelationIDs` at `aggregator.go:243-274`, keyed by session "}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ID + system hash.\n\n## 5. The streaming (SSE) wrinkle\n\nLLM responses stream token"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-by-token, so the usage totals only appear at the *end* of the stream. To handle this without blocking the client"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":":\n\n- `StreamResponseModifier` wraps only `text/event-stream` responses (`telemetry.go:137-143`).\n- `"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"TeeResponseReader` (`dispatch_v2_strip.go:42-87`) uses `io.TeeReader` to cop"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"y raw stream bytes into `ctx.responseBuffer` **while** the client receives them in real time — zero added latency."}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" It also stream-decompresses gzip/brotli/deflate/zstd so it can parse plaintext SSE frames.\n- `"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"SSEEnd` fires once the full stream completes → `finishFlow(f, true)`, which reads the buffered byt"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"es (`ctx.responseBuffer.Bytes()`), parses the SSE frames, and extracts final usage/"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"cost.\n- `ResponseComplete` (`assemble.go:199`) flags streams that were cut short (empty `stop_reason`) so aborted stre"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ams can be filtered downstream.\n\nSo the round trip is: **flow ID ties request→response**, **timestamps b"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"racket latency**, and **for streaming, a tee buffer captures the whole response** so the final token us"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"age can be reconciled back to the original request at `SSEEnd`."}            }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0 }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":2,"cache_creation_input_tokens":23437,"cache_read_input_tokens":0,"output_tokens":1611,"output_tokens_details":{"thinking_tokens":0}}         }
+
+event: message_stop
+data: {"type":"message_stop"}
+

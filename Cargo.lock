@@ -2287,6 +2287,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "noodle-trace-emitter"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "noodle-adapters",
+ "noodle-shipper",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "noodle-viewer"
 version = "0.0.1"
 dependencies = [

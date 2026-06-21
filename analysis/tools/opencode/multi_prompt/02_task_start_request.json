@@ -1,0 +1,452 @@
+// Content-Type: application/json
+// User-Agent: opencode/1.17.5 ai-sdk/provider-utils/4.0.27 runtime/bun/1.3.14
+// anthropic-beta: structured-outputs-2025-11-13,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14
+// anthropic-version: 2023-06-01
+// x-api-key: sk-ant-REDACTED
+// x-parent-session-id: ses_12eb57857ffecgvQUSmmb7TQJF
+// x-session-affinity: ses_12eb2a1cfffevZDXcAhxz7juZR
+// x-session-id: ses_12eb2a1cfffevZDXcAhxz7juZR
+// Connection: keep-alive
+// Accept: */*
+// Host: api.anthropic.com
+// Accept-Encoding: gzip, deflate, br, zstd
+// Content-Length: 15998
+
+{
+    "model": "claude-opus-4-8",
+    "max_tokens": 32000,
+    "system": [
+        {
+            "type": "text",
+            "text": "You are OpenCode, the best coding agent on the planet.\n\nYou are an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.\n\nIMPORTANT: You must NEVER generate or guess URLs for the user unless you are confident that the URLs are for helping the user with programming. You may use URLs provided by the user in their messages or local files.\n\nIf the user asks for help or wants to give feedback inform them of the following:\n- ctrl+p to list available actions\n- To give feedback, users should report the issue at\n  https://github.com/anomalyco/opencode\n\nWhen the user directly asks about OpenCode (eg. \"can OpenCode do...\", \"does OpenCode have...\"), or asks in second person (eg. \"are you able...\", \"can you do...\"), or asks how to use a specific OpenCode feature (eg. implement a hook, write a slash command, or install an MCP server), use the WebFetch tool to gather information to answer the question from OpenCode docs. The list of available docs is available at https://opencode.ai/docs\n\n# Tone and style\n- Only use emojis if the user explicitly requests it. Avoid using emojis in all communication unless asked.\n- Your output will be displayed on a command line interface. Your responses should be short and concise. You can use GitHub-flavored markdown for formatting, and will be rendered in a monospace font using the CommonMark specification.\n- Output text to communicate with the user; all text you output outside of tool use is displayed to the user. Only use tools to complete tasks. Never use tools like Bash or code comments as means to communicate with the user during the session.\n- NEVER create files unless they're absolutely necessary for achieving your goal. ALWAYS prefer editing an existing file to creating a new one. This includes markdown files.\n\n# Professional objectivity\nPrioritize technical accuracy and truthfulness over validating the user's beliefs. Focus on facts and problem-solving, providing direct, objective technical info without any unnecessary superlatives, praise, or emotional validation. It is best for the user if OpenCode honestly applies the same rigorous standards to all ideas and disagrees when necessary, even if it may not be what the user wants to hear. Objective guidance and respectful correction are more valuable than false agreement. Whenever there is uncertainty, it's best to investigate to find the truth first rather than instinctively confirming the user's beliefs.\n\n# Task Management\nYou have access to the TodoWrite tools to help you manage and plan tasks. Use these tools VERY frequently to ensure that you are tracking your tasks and giving the user visibility into your progress.\nThese tools are also EXTREMELY helpful for planning tasks, and for breaking down larger complex tasks into smaller steps. If you do not use this tool when planning, you may forget to do important tasks - and that is unacceptable.\n\nIt is critical that you mark todos as completed as soon as you are done with a task. Do not batch up multiple tasks before marking them as completed.\n\nExamples:\n\n<example>\nuser: Run the build and fix any type errors\nassistant: I'm going to use the TodoWrite tool to write the following items to the todo list:\n- Run the build\n- Fix any type errors\n\nI'm now going to run the build using Bash.\n\nLooks like I found 10 type errors. I'm going to use the TodoWrite tool to write 10 items to the todo list.\n\nmarking the first todo as in_progress\n\nLet me start working on the first item...\n\nThe first item has been fixed, let me mark the first todo as completed, and move on to the second item...\n..\n..\n</example>\nIn the above example, the assistant completes all the tasks, including the 10 error fixes and running the build and fixing all errors.\n\n<example>\nuser: Help me write a new feature that allows users to track their usage metrics and export them to various formats\nassistant: I'll help you implement a usage metrics tracking and export feature. Let me first use the TodoWrite tool to plan this task.\nAdding the following todos to the todo list:\n1. Research existing metrics tracking in the codebase\n2. Design the metrics collection system\n3. Implement core metrics tracking functionality\n4. Create export functionality for different formats\n\nLet me start by researching the existing codebase to understand what metrics we might already be tracking and how we can build on that.\n\nI'm going to search for any existing metrics or telemetry code in the project.\n\nI've found some existing telemetry code. Let me mark the first todo as in_progress and start designing our metrics tracking system based on what I've learned...\n\n[Assistant continues implementing the feature step by step, marking todos as in_progress and completed as they go]\n</example>\n\n\n# Doing tasks\nThe user will primarily request you perform software engineering tasks. This includes solving bugs, adding new functionality, refactoring code, explaining code, and more. For these tasks the following steps are recommended:\n- \n- Use the TodoWrite tool to plan the task if required\n\n- Tool results and user messages may include <system-reminder> tags. <system-reminder> tags contain useful information and reminders. They are automatically added by the system, and bear no direct relation to the specific tool results or user messages in which they appear.\n\n\n# Tool usage policy\n- When doing file search, prefer to use the Task tool in order to reduce context usage.\n- You should proactively use the Task tool with specialized agents when the task at hand matches the agent's description.\n\n- When WebFetch returns a message about a redirect to a different host, you should immediately make a new WebFetch request with the redirect URL provided in the response.\n- You can call multiple tools in a single response. If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency. However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially. For instance, if one operation must complete before another starts, run these operations sequentially instead. Never use placeholders or guess missing parameters in tool calls.\n- If the user specifies that they want you to run tools \"in parallel\", you MUST send a single message with multiple tool use content blocks. For example, if you need to launch multiple agents in parallel, send a single message with multiple Task tool calls.\n- Use specialized tools instead of bash commands when possible, as this provides a better user experience. For file operations, use dedicated tools: Read for reading files instead of cat/head/tail, Edit for editing instead of sed/awk, and Write for creating files instead of cat with heredoc or echo redirection. Reserve bash tools exclusively for actual system commands and terminal operations that require shell execution. NEVER use bash echo or other command-line tools to communicate thoughts, explanations, or instructions to the user. Output all communication directly in your response text instead.\n- VERY IMPORTANT: When exploring the codebase to gather context or to answer a question that is not a needle query for a specific file/class/function, it is CRITICAL that you use the Task tool instead of running search commands directly.\n<example>\nuser: Where are errors from the client handled?\nassistant: [Uses the Task tool to find the files that handle client errors instead of using Glob or Grep directly]\n</example>\n<example>\nuser: What is the codebase structure?\nassistant: [Uses the Task tool]\n</example>\n\nIMPORTANT: Always use the TodoWrite tool to plan and track tasks throughout the conversation.\n\n# Code References\n\nWhen referencing specific functions or pieces of code include the pattern `file_path:line_number` to allow the user to easily navigate to the source code location.\n\n<example>\nuser: Where are errors from the client handled?\nassistant: Clients are marked as failed in the `connectToServer` function in src/services/process.ts:712.\n</example>\n\nYou are powered by the model named claude-opus-4-8. The exact model ID is anthropic/claude-opus-4-8\nHere is some useful information about the environment you are running in:\n<env>\n  Working directory: /Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos\n  Workspace root folder: /Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos\n  Is directory a git repo: yes\n  Platform: darwin\n  Today's date: Tue Jun 16 2026\n</env>\nInstructions from: /Users/joe.barnett/.claude/CLAUDE.md\n# CLAUDE.md\n\nGlobal rules for all CloudZero repositories.\nRepo-specific overrides go in each repo's `.claude/rules/repository.md`.\n\nInstructions from: /Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/AGENTS.md\n# AGENTS.md\n\nThis document provides high-level context for AI agents working in this repository.\nDetailed rules live in `.claude/` — this file is an index, not a rule dump.\nConfigure AGENTS.md using the `/onboard` skill.\nRepository specific rules go in to `.claude/rules/repository.md`.\n\n## Project Context\n\n- **Repository**: feature-ai-collector-macos\n- **Language**: Swift / Go\n- **Type**: macOS Application + Go Backend Services\n\n## Where to Find Instructions\n\n### Core Documentation\n\n| What                     | Where                           |\n| ------------------------ | ------------------------------- |\n| Project overview         | `README.md` (project root)      |\n| Architecture guide       | `docs/project/ARCHITECTURE.md`  |\n| Usage & workflows        | `docs/project/USAGE.md`         |\n| Testing guide            | `docs/project/TESTING.md`       |\n| Feature documentation    | `docs/project/CAPABILITIES.md`  |\n| Learnings                | `docs/project/LEARNINGS.md`     |\n| Changelog                | `docs/project/CHANGELOG.md`     |\n| Decisions                | `docs/project/DECISIONS.md`     |\n| Current state            | `docs/project/CURRENT-STATE.md` |\n| Handoff between sessions | `tasks/HANDOFF.md`              |\n| Session log              | `tasks/SESSION-LOG.md`          |\n\n### Rules\n\n| Category     | Rule        | Path                               |\n| ------------ | ----------- | ---------------------------------- |\n| Organization | Global      | `.claude/rules/global.md`          |\n| Technology   | Makefile    | `.claude/rules/tech/makefile.md`   |\n| Technology   | Aws         | `.claude/rules/tech/aws.md`        |\n| Scope        | Engineering | `.claude/rules/scope/engineering.md` |\n| Scope        | Backend     | `.claude/rules/scope/backend.md`   |\n| Team         | Cirrus      | `.claude/rules/teams/cirrus.md`    |\n| Repository   | Repository  | `.claude/rules/repository.md`      |\n\nSkills provide specialized instructions and workflows for specific tasks.\nUse the skill tool to load a skill when a task matches its description.\n<available_skills>\n  <skill>\n    <name>customize-opencode</name>\n    <description>Use ONLY when the user is editing or creating opencode's own configuration: opencode.json, opencode.jsonc, files under .opencode/, or files under ~/.config/opencode/. Also use when creating or fixing opencode agents, subagents, skills, plugins, MCP servers, or permission rules. Do not use for the user's own application code, or for any project that is not configuring opencode itself.</description>\n    <location>file:///Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/%3Cbuilt-in%3E</location>\n  </skill>\n  <skill>\n    <name>software-design</name>\n    <description>A disciplined process for designing software well — problem domain modeling, solution domain modeling, flow diagrams, and critical algorithm design, producing durable design documentation (draw.io + Mermaid diagrams, markdown docs in the repo). Use this skill whenever the user wants to design, architect, or plan a feature, system, service, component, or refactor — including phrases like \"design doc\", \"technical design\", \"how should we build\", \"architecture for\", \"model the domain\", \"plan this feature\", or any request to produce or update design documentation, even if they don't say \"design\" explicitly.</description>\n    <location>file:///Users/joe.barnett/.claude/skills/software-design/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>value-cadence</name>\n    <description>Produce a value-first delivery cadence from existing brainstorm/design material against a stated goal. Fires when the user (or a Fugir agent receiving an issue) has a corpus of design docs / plans and asks for sequencing — \"what's the delivery plan\", \"how should we sequence this\", \"organize this into a plan\", \"value-first cadence\", or /value-cadence. Outputs a numbered slice table with deps, ETAs, parallelism, proof point, delta from prior plan, and a recommended first move.</description>\n    <location>file:///Users/joe.barnett/.claude/skills/value-cadence/SKILL.md</location>\n  </skill>\n</available_skills>",
+            "cache_control": {
+                "type": "ephemeral"
+            }
+        }
+    ],
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "what does this application do?"
+                }
+            ]
+        },
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "I'll explore the repository to understand what this application does."
+                },
+                {
+                    "type": "tool_use",
+                    "id": "toolu_01WpZTVhH9qwsuEbkV5TdHZh",
+                    "name": "read",
+                    "input": {
+                        "filePath": "/Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/README.md"
+                    },
+                    "caller": {
+                        "type": "direct"
+                    }
+                }
+            ]
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_01WpZTVhH9qwsuEbkV5TdHZh",
+                    "content": "<path>/Users/joe.barnett/company/code/cloudzero/feature-ai-collector-macos/README.md</path>\n<type>file</type>\n<content>\n1: # CloudZero AI Cost Intelligence\n2: \n3: **Real-time visibility into what your organization spends on AI — per request, per developer, per project.**\n4: \n5: ![MVP Final State — Production signed, system-wide AI telemetry capture, CloudZero platform](docs/images/mvp-final-state.png)\n6: \n7: ## The Problem\n8: \n9: AI coding tools are transforming software development. Claude Code, Cursor, GitHub Copilot, Amazon Q — engineers use them constantly, and the API bills are growing fast. But today there's no way to answer basic questions:\n10: \n11: - How much did the platform team spend on AI this sprint?\n12: - Which project is burning through tokens the fastest?\n13: - Is that $800 Opus bill from actual feature work or someone experimenting?\n14: - Are we using prompt caching effectively, or paying full price on every call?\n15: \n16: Cloud providers give you a monthly total. AI providers give you a rate limit dashboard. Neither gives you the granularity to manage AI spend the way you manage cloud spend — by team, project, feature, and business purpose.\n17: \n18: ## How It Works\n19: \n20: A macOS system extension intercepts AI provider traffic at the OS level,\n21: routes it through a local MITM proxy, and extracts per-request cost\n22: telemetry — without modifying any AI tools or requiring vendor cooperation.\n23: \n24: ```mermaid\n25: sequenceDiagram\n26:     participant Tool as AI Tool<br/>(Claude Code, Cursor, etc.)\n27:     participant NE as Network Extension<br/>(NETransparentProxyProvider)\n28:     participant Monitor as cz-monitor<br/>(localhost:9090)\n29:     participant DB as SQLite\n30:     participant API as AI Provider API<br/>(Anthropic, OpenAI, etc.)\n31: \n32:     Tool->>NE: TCP connect to api.anthropic.com:443\n33:     NE->>NE: Hostname matches AI provider rule\n34:     NE->>Monitor: CONNECT api.anthropic.com:443\n35:     Monitor->>Monitor: TLS termination with local CA\n36:     Monitor->>API: Forward request over TLS\n37:     API-->>Monitor: Response (model, tokens, usage)\n38:     Monitor->>Monitor: Extract tokens, cost, latency, session\n39:     Monitor->>DB: INSERT telemetry event\n40:     Monitor-->>NE: Forward response\n41:     NE-->>Tool: Forward response unchanged\n42: ```\n43: \n44: Non-AI traffic never reaches the extension — macOS only delivers flows\n45: matching configured AI provider hostnames. Zero overhead for all other\n46: network activity.\n47: \n48: ### Components\n49: \n50: | Component | What | Where |\n51: |-----------|------|-------|\n52: | **CloudZero.app** | macOS menu bar app. Manages all component lifecycles, CA cert trust, local dashboard. | `app/` |\n53: | **CZNetworkExtension** | `NETransparentProxyProvider` system extension. Intercepts AI provider TCP flows, relays to cz-monitor. | `app/CZNetworkExtension/` |\n54: | **cz-monitor** | Go MITM proxy on localhost:9090. Selective TLS interception, response parsing, telemetry extraction. | `proxy/` |\n55: | **SQLite** | Local telemetry store. One row per API call with tokens, cost, identity, timing. | `~/Library/Application Support/CloudZero/cloudzero.db` |\n56: \n57: ### Telemetry Record\n58: \n59: Every intercepted API call produces a telemetry event:\n60: \n61: ```json\n62: {\n63:   \"event_id\": \"01JPPXK3M7WNBQ4VYHZ6JDTC9E\",\n64:   \"provider\": \"anthropic\",\n65:   \"model\": \"claude-haiku-4-5-20251001\",\n66:   \"input_tokens\": 10,\n67:   \"output_tokens\": 106,\n68:   \"cache_read_tokens\": 10182,\n69:   \"estimated_cost_usd\": 0.0195,\n70:   \"latency_ms\": 1390,\n71:   \"status_code\": 200,\n72:   \"api_key_prefix\": \"sk-ant-REDACTED\",\n73:   \"organization_id\": \"3205f18e-...\",\n74:   \"session_hash\": \"bb95f4afcf0b\",\n75:   \"client_user_agent\": \"claude-cli/2.1.19 (external, cli)\",\n76:   \"delivery_status\": \"pending\"\n77: }\n78: ```\n79: \n80: ### Fail-Open Design\n81: \n82: Telemetry collection never blocks API access. If cz-monitor crashes, the\n83: extension returns `false` for all flows — traffic passes through directly.\n84: The user loses telemetry temporarily but never loses API access.\n85: \n86: ![Fail-open flow — monitor down, backpressure, user bypass, auto-restart](docs/images/fail-open-flow.png)\n87: \n88: ## Architecture\n89: \n90: Two deployment scenarios share the same core: intercept AI HTTPS traffic,\n91: extract telemetry, ship to CloudZero. What changes is where the monitor\n92: runs and how traffic reaches it.\n93: \n94: ### Developer Laptop (macOS)\n95: \n96: The primary deployment today. The Network Extension intercepts AI provider\n97: connections system-wide. No env vars to set, no per-tool configuration.\n98: Install the app, approve the extension, and every AI tool on the machine\n99: is metered.\n100: \n101: For cloud/K8s deployments, `HTTPS_PROXY` env var routing is used instead\n102: of the Network Extension — same monitor, different intake mechanism.\n103: \n104: ### Customer Cloud (K8s / ECS)\n105: \n106: For AI API calls from shared infrastructure — CI/CD, backend services,\n107: batch processing — the monitor runs as a centralized service. Workloads\n108: configured with `HTTPS_PROXY` pointing at the monitor get telemetry\n109: captured automatically. In Kubernetes, a mutating webhook injects the\n110: proxy config into pods matching a label selector.\n111: \n112: ![Cloud deployment](docs/images/cloud.png)\n113: \n114: ### Combined (Laptop + Cloud)\n115: \n116: Most organizations end up here. Developers on laptops, CI/CD and\n117: services in the cloud. Both feed the same CloudZero platform with\n118: identical telemetry schema. One unified view of AI spend across all\n119: environments.\n120: \n121: ### CI/CD Workflows\n122: \n123: Build, sign, test, and release pipelines for the macOS app and Network\n124: Extension. PR builds verify both targets compile and tests pass. Release\n125: builds produce a signed, packaged `.zip` attached to GitHub Releases.\n126: \n127: ![CI/CD workflows — PR, release, and future notarization pipelines](docs/images/ci-cd-workflows.png)\n128: \n129: For cutting a release, see [`docs/operations/release-process.md`](docs/operations/release-process.md). For the release-notes writing convention, see [`docs/releases/RELEASE_NOTES_GUIDE.md`](docs/releases/RELEASE_NOTES_GUIDE.md).\n130: \n131: ## Where This Goes — The Larger Vision\n132: \n133: What we have today is the telemetry capture layer — the hardest part. The raw per-request data is the foundation for everything that follows.\n134: \n135: ### Near-term: Single-pane developer experience\n136: \n137: - **Live telemetry in the menu bar** — real-time tokens, cost, and cache efficiency. No browser, no dashboard — always visible.\n138: - **Zero-config setup** — install the app, approve the extension, done. No terminal, no Homebrew.\n139: - **App-hosted monitor** — the menu bar app owns the monitor lifecycle. One app to install, one app to manage.\n140: \n141: ### Mid-term: Business context and cost allocation\n142: \n143: - **Project and task tagging** — map AI requests to project directory, git branch, Jira ticket. AI spend becomes \"ENG-1234 retry logic: $47\" not \"Anthropic: $2,400/month.\"\n144: - **Reliable telemetry shipping** — delivery pipeline with at-least-once guarantees. Handles offline gracefully (laptop closed, VPN drops). No data lost.\n145: - **Multi-tool coverage** — any AI tool that uses HTTPS APIs. Cursor, Continue.dev, Aider, custom scripts, internal services.\n146: \n147: ### Longer-term: Enterprise AI FinOps\n148: \n149: - **CloudZero platform integration** — AI spend alongside cloud spend: dimensions, allocations, anomaly detection, budgets, alerts.\n150: - **Team and org rollups** — aggregate by API key, developer, team, department.\n151: - **Anomaly detection** — \"Developer X's AI spend jumped 400% this week.\" Surface proactively, not in the monthly bill review.\n152: - **Prompt caching optimization** — which teams use caching effectively vs. paying full price on every call.\n153: \n154: ### The strategic bet\n155: \n156: Every organization adopting AI coding tools will face the same problem: AI API spend is growing fast, it's opaque, and existing cloud cost tools don't cover it.\n157: \n158: CloudZero already solves this for cloud infrastructure. This extends that capability to AI spend — same architectural pattern, same platform.\n159: \n160: ---\n161: \n162: ## Quick Start\n163: \n164: ### Prerequisites\n165: \n166: - **macOS 14+** (Apple Silicon or Intel)\n167: - **Xcode 15+**\n168: - **Go 1.21+**\n169: - [Developer ID Application certificate](docs/operations/developer-signing-setup.md)\n170: \n171: ### Build and install\n172: \n173: ```bash\n174: # Copy .env.example to .env, set SIGN_IDENTITY and TEAM_ID\n175: cp .env.example .env\n176: \n177: # Build everything and install to /Applications\n178: make build\n179: make install\n180: \n181: # Launch\n182: open /Applications/CloudZero.app\n183: ```\n184: \n185: On first launch: approve the system extension in System Settings >\n186: General > Login Items & Extensions, and trust the CA certificate when\n187: prompted.\n188: \n189: ### Verify\n190: \n191: ```bash\n192: # Check infrastructure health\n193: make verify\n194: \n195: # Watch telemetry in real-time\n196: make watch\n197: ```\n198: \n199: ### Shell environment (for CLI tools)\n200: \n201: CLI tools (Claude Code, OpenCode) need the CA cert to trust the MITM:\n202: \n203: ```bash\n204: source scripts/proxy-env.sh\n205: ```\n206: \n207: This sets `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, and other\n208: runtime-specific CA variables.\n209: \n210: ### Stop and clean up\n211: \n212: ```bash\n213: make teardown    # remove CA from trust store, stop monitor\n214: make clean       # full uninstall: app, data, certs, extensions\n215: ```\n216: OR\n217: \n218: ```bash\n219: killall CloudZero\n220: open -a /Applications/CloudZero.app --args --uninstall\n221: ```\n222: \n223: ## Running Tests\n224: \n225: ```bash\n226: make test          # all tests (Go + Swift)\n227: make test-proxy    # Go proxy tests only\n228: make test-app      # Swift app tests only\n229: ```\n230: \n231: ## Repo Structure\n232: \n233: ```\n234: hackathon-macos-cloudzero-tracker/\n235: ├── Makefile                     # Build, install, test, verify, watch\n236: ├── app/                         # CloudZero macOS menu bar app (Swift/SwiftUI)\n237: │   ├── CloudZero.xcodeproj\n238: │   ├── CloudZero/               # Main app source\n239: │   │   └── Shared/Services/     # ProxyManager, NetworkExtensionManager, CertificateService\n240: │   └── CZNetworkExtension/      # System extension (NETransparentProxyProvider)\n241: ├── proxy/                     # cz-monitor Go MITM proxy\n242: │   ├── cmd/cz-monitor/          # Binary entry point\n243: │   └── internal/\n244: │       ├── addon/               # go-mitmproxy telemetry addon\n245: │       ├── inspector/           # Provider detection, response parsing, cost estimation\n246: │       └── storage/             # SQLite connection, migrations, event insertion\n247: ├── db/migrations/               # SQL schema migrations\n248: ├── scripts/                     # Dev/ops scripts\n249: │   ├── install.sh               # Embed cz-monitor, re-sign, install to /Applications\n250: │   ├── clean.sh                 # Full uninstall\n251: │   ├── verify.sh                # Infrastructure health checks\n252: │   ├── watch.sh                 # Live telemetry tail from SQLite\n253: │   ├── setup.sh                 # CA cert generation and trust\n254: │   ├── proxy-env.sh             # Shell env setup for CLI tools\n255: │   └── ...\n256: └── docs/\n257:     ├── design/                  # System architecture, planning\n258:     ├── features/                # Feature backlog (future)\n259:     │   └── done/                # Shipped features\n260:     ├── diagrams/                # Architecture diagrams\n261:     └── todo/                    # Tracked work items\n262: ```\n263: \n264: ## Supported Providers\n265: \n266: | Provider | Domains | What's Captured |\n267: |---|---|---|\n268: | Anthropic | `api.anthropic.com` | model, tokens, cache tokens, cost, org ID, session hash |\n269: | OpenAI | `api.openai.com` | model, tokens, cost |\n270: | Azure OpenAI | `*.openai.azure.com` | model, tokens, cost |\n271: | AWS Bedrock | `bedrock-runtime.*.amazonaws.com` | model (from URL), tokens, cost |\n272: | Google AI | `generativelanguage.googleapis.com` | model, tokens, cost |\n\n(End of file - total 272 lines)\n</content>"
+                }
+            ]
+        },
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "This application is **CloudZero AI Cost Intelligence** — a macOS tool that provides real-time visibility into AI/LLM API spending across an organization.\n\n## What it does\n\nIt transparently meters AI API usage (Claude, OpenAI, Cursor, Copilot, etc.) at the network level, extracting per-request cost telemetry **without modifying any AI tools or needing vendor cooperation**.\n\n## How it works\n\n1. A macOS **system extension** (`NETransparentProxyProvider`) intercepts TCP connections to known AI provider hostnames (e.g. `api.anthropic.com`) at the OS level.\n2. Matching traffic is routed to a local **Go MITM proxy** (`cz-monitor` on `localhost:9090`), which terminates TLS using a locally-trusted CA cert.\n3. The proxy parses each request/response to extract **tokens, cost, latency, model, session, and identity** info.\n4. Each API call becomes a telemetry record stored in a local **SQLite** database, destined for the CloudZero platform.\n\nNon-AI traffic never touches the extension, so there's zero overhead for everything else.\n\n## Key components\n\n| Component | Role |\n|-----------|------|\n| **CloudZero.app** | Swift/SwiftUI menu bar app — manages lifecycles, CA trust, dashboard |\n| **CZNetworkExtension** | System extension that intercepts AI provider flows |\n| **cz-monitor** | Go MITM proxy that does TLS interception + telemetry extraction |\n| **SQLite** | Local store, one row per API call |\n\n## Notable design points\n\n- **Fail-open**: telemetry collection never blocks API access. If `cz-monitor` crashes, traffic passes through directly — you lose telemetry temporarily, never API access.\n- **Two deployments**: developer laptops (Network Extension, system-wide, zero-config) and customer cloud/K8s (`HTTPS_PROXY` routing into a centralized monitor).\n\n## The bigger picture\n\nIt's positioned as the **telemetry capture layer** for \"AI FinOps\" — extending CloudZero's existing cloud-cost capabilities to AI spend, with a roadmap toward project/task tagging (mapping spend to git branch/Jira ticket), anomaly detection, and team/org rollups.\n\n**Supported providers:** Anthropic, OpenAI, Azure OpenAI, AWS Bedrock, and Google AI.",
+                    "cache_control": {
+                        "type": "ephemeral"
+                    }
+                }
+            ]
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Intersting, can you tell me how it tracks round trips? ",
+                    "cache_control": {
+                        "type": "ephemeral"
+                    }
+                }
+            ]
+        }
+    ],
+    "tools": [
+        {
+            "name": "bash",
+            "description": "Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.\n\nBe aware: OS: darwin, Shell: zsh\n\nAll commands run in the current working directory by default. Use the `workdir` parameter if you need to run a command in a different directory. AVOID using `cd <directory> && <command>` patterns - use `workdir` instead.\n\nUse `/var/folders/x5/sqw9ytls25nbp9m710p0b7hw0000gp/T/opencode` for temporary work outside the workspace. This directory has already been created, already exists, and is pre-approved for external directory access.\n\nIMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.\n\nBefore executing the command, please follow these steps:\n\n1. Directory Verification:\n   - If the command will create new directories or files, first use `ls` to verify the parent directory exists and is the correct location\n   - For example, before running \"mkdir foo/bar\", first use `ls foo` to check that \"foo\" exists and is the intended parent directory\n\n2. Command Execution:\n   - Always quote file paths that contain spaces with double quotes (e.g., rm \"path with spaces/file.txt\")\n   - Examples of proper quoting:\n     - mkdir \"/Users/name/My Documents\" (correct)\n     - mkdir /Users/name/My Documents (incorrect - will fail)\n     - python \"/path/with spaces/script.py\" (correct)\n     - python /path/with spaces/script.py (incorrect - will fail)\n   - After ensuring proper quoting, execute the command.\n   - Capture the output of the command.\n\nUsage notes:\n  - The command argument is required.\n  - You can specify an optional timeout in milliseconds. If not specified, commands will time out after 120000ms.\n  - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.\n  - If the output exceeds 2000 lines or 51200 bytes, it will be truncated and the full output will be written to a file. You can use Read with offset/limit to read specific sections or Grep to search the full content. Do NOT use `head`, `tail`, or other truncation commands to limit output; the full output will already be captured to a file for more precise searching.\n\n  - Avoid using Bash with the `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk`, or `echo` commands, unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:\n    - File search: Use Glob (NOT find or ls)\n    - Content search: Use Grep (NOT grep or rg)\n    - Read files: Use Read (NOT cat/head/tail)\n    - Edit files: Use Edit (NOT sed/awk)\n    - Write files: Use Write (NOT echo >/cat <<EOF)\n    - Communication: Output text directly (NOT echo/printf)\n  - When issuing multiple commands:\n    - If the commands are independent and can run in parallel, make multiple bash tool calls in a single message. For example, if you need to run \"git status\" and \"git diff\", send a single message with two bash tool calls in parallel.\n    - If the commands depend on each other and must run sequentially, use a single Bash call with '&&' to chain them together (e.g., `git add . && git commit -m \"message\" && git push`). For instance, if one operation must complete before another starts (like mkdir before cp, Write before Bash for git operations, or git add before git commit), run these operations sequentially instead.\n    - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail\n    - DO NOT use newlines to separate commands (newlines are ok in quoted strings)\n  - AVOID using `cd <directory> && <command>`. Use the `workdir` parameter to change directories instead.\n    <good-example>\n    Use workdir=\"/foo/bar\" with command: pytest tests\n    </good-example>\n    <bad-example>\n    cd /foo/bar && pytest tests\n    </bad-example>\n\n# Git and GitHub\n- Only commit, amend, push, or create PRs when explicitly requested.\n- Before committing, inspect `git status`, `git diff`, and `git log --oneline -10`; stage only intended files and never commit secrets.\n- Write a concise commit message that matches the repo style.\n- Do not update git config, skip hooks, use interactive `-i`, force-push, or create empty commits unless explicitly requested.\n- If a commit fails or hooks reject it, fix the issue and create a new commit; do not amend the failed commit.\n- Before creating a PR, inspect status, diff, remote tracking, recent commits, and the diff from the base branch.\n- Review all commits included in the PR, not just the latest commit.\n- Use `gh` for GitHub tasks, including PRs, issues, checks, and releases; return the PR URL when done.\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The command to execute"
+                    },
+                    "timeout": {
+                        "minimum": -9007199254740991,
+                        "exclusiveMinimum": 0,
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "description": "Optional timeout in milliseconds"
+                    },
+                    "workdir": {
+                        "type": "string",
+                        "description": "The working directory to run the command in. Defaults to the current directory. Use this instead of 'cd' commands."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'"
+                    }
+                },
+                "required": [
+                    "command",
+                    "description"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "edit",
+            "description": "Performs exact string replacements in files. \n\nUsage:\n- You must use your `Read` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file. \n- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + colon + space (e.g., `1: `). Everything after that space is the actual file content to match. Never include any part of the line number prefix in the oldString or newString.\n- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n- The edit will FAIL if `oldString` is not found in the file with an error \"oldString not found in content\".\n- The edit will FAIL if `oldString` is found multiple times in the file with an error \"Found multiple matches for oldString. Provide more surrounding lines in oldString to identify the correct match.\" Either provide a larger string with more surrounding context to make it unique or use `replaceAll` to change every instance of `oldString`. \n- Use `replaceAll` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "filePath": {
+                        "type": "string",
+                        "description": "The absolute path to the file to modify"
+                    },
+                    "oldString": {
+                        "type": "string",
+                        "description": "The text to replace"
+                    },
+                    "newString": {
+                        "type": "string",
+                        "description": "The text to replace it with (must be different from oldString)"
+                    },
+                    "replaceAll": {
+                        "type": "boolean",
+                        "description": "Replace all occurrences of oldString (default false)"
+                    }
+                },
+                "required": [
+                    "filePath",
+                    "oldString",
+                    "newString"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "glob",
+            "description": "- Fast file pattern matching tool that works with any codebase size\n- Supports glob patterns like \"**/*.js\" or \"src/**/*.ts\"\n- Returns matching file paths\n- Use this tool when you need to find files by name patterns\n- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead\n- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "The glob pattern to match files against"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter \"undefined\" or \"null\" - simply omit it for the default behavior. Must be a valid directory path if provided."
+                    }
+                },
+                "required": [
+                    "pattern"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "grep",
+            "description": "- Fast content search tool that works with any codebase size\n- Searches file contents using regular expressions\n- Supports full regex syntax (eg. \"log.*Error\", \"function\\s+\\w+\", etc.)\n- Filter files by pattern with the include parameter (eg. \"*.js\", \"*.{ts,tsx}\")\n- Returns file paths and line numbers with matching lines\n- Use this tool when you need to find files containing specific patterns\n- If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.\n- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "The regex pattern to search for in file contents"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "The directory to search in. Defaults to the current working directory."
+                    },
+                    "include": {
+                        "type": "string",
+                        "description": "File pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")"
+                    }
+                },
+                "required": [
+                    "pattern"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "question",
+            "description": "Use this tool when you need to ask the user questions during execution. This allows you to:\n1. Gather user preferences or requirements\n2. Clarify ambiguous instructions\n3. Get decisions on implementation choices as you work\n4. Offer choices to the user about what direction to take.\n\nUsage notes:\n- When `custom` is enabled (default), a \"Type your own answer\" option is added automatically; don't include \"Other\" or catch-all options\n- Answers are returned as arrays of labels; set `multiple: true` to allow selecting more than one\n- If you recommend a specific option, make that the first option in the list and add \"(Recommended)\" at the end of the label\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "questions": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "question": {
+                                    "type": "string",
+                                    "description": "Complete question"
+                                },
+                                "header": {
+                                    "type": "string",
+                                    "description": "Very short label (max 30 chars)"
+                                },
+                                "options": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "label": {
+                                                "type": "string",
+                                                "description": "Display text (1-5 words, concise)"
+                                            },
+                                            "description": {
+                                                "type": "string",
+                                                "description": "Explanation of choice"
+                                            }
+                                        },
+                                        "required": [
+                                            "label",
+                                            "description"
+                                        ]
+                                    },
+                                    "description": "Available choices"
+                                },
+                                "multiple": {
+                                    "type": "boolean",
+                                    "description": "Allow selecting multiple choices"
+                                }
+                            },
+                            "required": [
+                                "question",
+                                "header",
+                                "options"
+                            ]
+                        },
+                        "description": "Questions to ask"
+                    }
+                },
+                "required": [
+                    "questions"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "read",
+            "description": "Read a file or directory from the local filesystem. If the path does not exist, an error is returned.\n\nUsage:\n- The filePath parameter should be an absolute path.\n- By default, this tool returns up to 2000 lines from the start of the file.\n- The offset parameter is the line number to start from (1-indexed).\n- To read later sections, call this tool again with a larger offset.\n- Use the grep tool to find specific content in large files or files with long lines.\n- If you are unsure of the correct file path, use the glob tool to look up filenames by glob pattern.\n- Contents are returned with each line prefixed by its line number as `<line>: <content>`. For example, if a file has contents \"foo\\n\", you will receive \"1: foo\\n\". For directories, entries are returned one per line (without line numbers) with a trailing `/` for subdirectories.\n- Any line longer than 2000 characters is truncated.\n- Call this tool in parallel when you know there are multiple files you want to read.\n- Avoid tiny repeated slices (30 line chunks). If you need more context, read a larger window.\n- This tool can read image files and PDFs and return them as file attachments.\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "filePath": {
+                        "type": "string",
+                        "description": "The absolute path to the file or directory to read"
+                    },
+                    "offset": {
+                        "minimum": 0,
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "description": "The line number to start reading from (1-indexed)"
+                    },
+                    "limit": {
+                        "minimum": 0,
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "description": "The maximum number of lines to read (defaults to 2000)"
+                    }
+                },
+                "required": [
+                    "filePath"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "skill",
+            "description": "Load a specialized skill when the task at hand matches one of the skills listed in the system prompt.\n\nUse this tool to inject the skill's instructions and resources into current conversation. The output may contain detailed workflow guidance as well as references to scripts, files, etc in the same directory as the skill.\n\nThe skill name must match one of the skills listed in your system prompt.\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the skill from available_skills"
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "task",
+            "description": "Launch a new agent to handle complex, multistep tasks autonomously.\n\nWhen using the Task tool, you must specify a subagent_type parameter to select which agent type to use.\n\nWhen NOT to use the Task tool:\n- If you want to read a specific file path, use the Read or Glob tool instead of the Task tool, to find the match more quickly\n- If you are searching for a specific class definition like \"class Foo\", use the Grep tool instead, to find the match more quickly\n- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Task tool, to find the match more quickly\n- If no available agent is a good fit for the task, use other tools directly\n\n\nUsage notes:\n1. Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses\n2. Once you have delegated work to an agent, do not duplicate that work yourself. Continue with non-overlapping tasks, or wait for the result. For background tasks, you will be notified automatically when the result is ready.\n3. When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result. The output includes a task_id you can reuse later to continue the same subagent session.\n4. Each agent invocation starts with a fresh context unless you provide task_id to resume the same subagent session (which continues with its previous messages and tool outputs). When starting fresh, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.\n5. The agent's outputs should generally be trusted\n6. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).\n7. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.\n\nAvailable agent types and the tools they have access to:\n- explore: Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. \"src/components/**/*.tsx\"), search code for keywords (eg. \"API endpoints\"), or answer questions about the codebase (eg. \"how do API endpoints work?\"). When calling this agent, specify the desired thoroughness level: \"quick\" for basic searches, \"medium\" for moderate exploration, or \"very thorough\" for comprehensive analysis across multiple locations and naming conventions.\n- general: General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "A short (3-5 words) description of the task"
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "The task for the agent to perform"
+                    },
+                    "subagent_type": {
+                        "type": "string",
+                        "description": "The type of specialized agent to use for this task"
+                    },
+                    "task_id": {
+                        "type": "string",
+                        "description": "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)"
+                    },
+                    "command": {
+                        "type": "string",
+                        "description": "The command that triggered this task"
+                    }
+                },
+                "required": [
+                    "description",
+                    "prompt",
+                    "subagent_type"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "todowrite",
+            "description": "Create and maintain a structured task list for the current coding session. Tracks progress, organizes multi-step work, and surfaces status to the user.\n\n## When to use\nUse proactively when:\n- The task requires 3+ distinct steps or actions (not just 3 tool calls for a single conceptual step)\n- The work is non-trivial and benefits from planning\n- The user provides multiple tasks (numbered or comma-separated) or explicitly asks for a todo list\n- New instructions arrive - capture them as todos\n- You start a task - mark it `in_progress` (only one at a time) before working\n- You finish a task - mark it `completed` and add any follow-ups discovered during the work\n\n## When NOT to use\nSkip when:\n- The work is a single, straightforward task (or <3 trivial steps)\n- The request is purely informational or conversational\n- Tracking adds no organizational value\n\n## States\n- `pending` - not started\n- `in_progress` - actively working (exactly ONE at a time)\n- `completed` - finished successfully\n- `cancelled` - no longer needed\n\n## Rules\n- Update status in real time; don't batch completions\n- Mark `completed` only after the required work is actually done, including any required verification. Never based on intent.\n- Keep exactly one `in_progress` while work remains\n- If blocked or partial, keep it `in_progress` and add a follow-up todo describing the blocker\n- Preserve user-provided commands verbatim (flags, args, order)\n- Items should be specific and actionable; break large work into smaller steps\n\n## Examples\n\nUse it:\n- \"Add a dark mode toggle and run the tests\" -> multi-step feature + explicit verification\n- \"Rename getCwd -> getCurrentWorkingDirectory across the repo\" -> grep reveals 15 occurrences in 8 files\n- \"Implement registration, catalog, cart, checkout\" -> multiple complex features\n\nSkip it:\n- \"How do I print Hello World in Python?\" -> informational\n- \"Add a comment to calculateTotal\" -> single edit\n- \"Run npm install and tell me what happened\" -> one command\n\nWhen in doubt, use it.\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "todos": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "content": {
+                                    "type": "string",
+                                    "description": "Brief description of the task"
+                                },
+                                "status": {
+                                    "type": "string",
+                                    "description": "Current status of the task: pending, in_progress, completed, cancelled"
+                                },
+                                "priority": {
+                                    "type": "string",
+                                    "description": "Priority level of the task: high, medium, low"
+                                }
+                            },
+                            "required": [
+                                "content",
+                                "status",
+                                "priority"
+                            ]
+                        },
+                        "description": "The updated todo list"
+                    }
+                },
+                "required": [
+                    "todos"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "webfetch",
+            "description": "- Fetches content from a specified URL\n- Takes a URL and optional format as input\n- Fetches the URL content, converts to requested format (markdown by default)\n- Returns the content in the specified format\n- Use this tool when you need to retrieve and analyze web content\n\nUsage notes:\n  - IMPORTANT: if another tool is present that offers better web fetching capabilities, is more targeted to the task, or has fewer restrictions, prefer using that tool instead of this one.\n  - The URL must be a fully-formed valid URL\n  - HTTP URLs will be automatically upgraded to HTTPS\n  - Format options: \"markdown\" (default), \"text\", or \"html\"\n  - This tool is read-only and does not modify any files\n  - Results may be summarized if the content is very large\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to fetch content from"
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": [
+                            "text",
+                            "markdown",
+                            "html"
+                        ],
+                        "description": "The format to return the content in (text, markdown, or html). Defaults to markdown.",
+                        "default": "markdown"
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "Optional timeout in seconds (max 120)"
+                    }
+                },
+                "required": [
+                    "url"
+                ]
+            },
+            "eager_input_streaming": true
+        },
+        {
+            "name": "write",
+            "description": "Writes a file to the local filesystem.\n\nUsage:\n- This tool will overwrite the existing file if there is one at the provided path.\n- If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.\n- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.\n- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.\n",
+            "input_schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The content to write to the file"
+                    },
+                    "filePath": {
+                        "type": "string",
+                        "description": "The absolute path to the file to write (must be absolute, not relative)"
+                    }
+                },
+                "required": [
+                    "content",
+                    "filePath"
+                ]
+            },
+            "eager_input_streaming": true
+        }
+    ],
+    "tool_choice": {
+        "type": "auto"
+    },
+    "stream": true
+}

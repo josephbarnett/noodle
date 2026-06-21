@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+#
+# Shipper-only build — local validation of the story-060 hierarchy on the
+# rancher-desktop cluster. The shared 4-binary build in `Dockerfile` OOMs the
+# lima build VM compiling `rama-http` (a proxy dep). noodle-shipper has NO rama
+# dependency, so compiling just this bin fits memory and is fast.
+#
+#   nerdctl --namespace k8s.io build -f Dockerfile.shipper -t noodle-shipper:local-hier .
+FROM rust:1.95-bookworm AS build
+WORKDIR /src
+COPY . .
+# rusqlite (bundled) compiles libsqlite3 via the C toolchain in the base image;
+# reqwest uses rustls (no OpenSSL), so no extra apt packages are needed.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/target \
+    cargo build --release --bin noodle-shipper \
+ && mkdir -p /out && cp target/release/noodle-shipper /out/
+
+FROM gcr.io/distroless/cc-debian12:nonroot AS shipper
+COPY --from=build /out/noodle-shipper /usr/local/bin/noodle-shipper
+ENTRYPOINT ["/usr/local/bin/noodle-shipper"]

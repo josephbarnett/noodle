@@ -1,0 +1,90 @@
+event: message_start
+data: {"type":"message_start","message":{"model":"claude-opus-4-8","id":"msg_01QRFpRe1CHjfv66haJVRKVD","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":406,"cache_creation_input_tokens":13492,"cache_read_input_tokens":32745,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":13492},"output_tokens":1,"service_tier":"standard","inference_geo":"global"},"diagnostics":null}           }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""} }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"All"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" three sub-agents ran in parallel. Combined results:\n\n## `proxy/internal/dispatch/aggregator"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"/`\nThe flow-finish terminal step — mints correlation IDs, resolves hints, assembles records, writes to sinks.\n\n- `aggregator."}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"go` — Construction (Sinks, Options) and the flow-finish step that mints IDs, resolves hints, assembles records, writes to sinks.\n-"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `assemble.go` — Builds the persisted `TelemetryEvent` and `RoundTripRecord`, stamping schema version 0.0.3.\n-"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" `boundaries.go` — Computes turn/agent-run boundaries; detects turn-continuation stop_reasons (`tool_use`, `pause_turn`), mints turnID/agentRun"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ID.\n- `clock.go` — `Clock` interface; `RealClock` for prod, `FakeClock` for tests.\n- `doc.go` — Package do"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"c describing the six-step flow-finish flow.\n- `lineage.go` — Tracks sub-agent spawn lineage via Agent/Task tool-"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"call chain, attributing sub-agent runs to parent turn/session.\n- `session_state.go` — Per-agent-run `SessionState` + store holding correlation/lineage"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" state consulted at flow finish.\n- `*_test.go` — aggregator, boundaries, interleaving, lineage, session_state tests.\n\n## `proxy"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"/internal/dispatch/sinks/sqlite/`\nThree SQLite-backed `Sink[T]` implementations writing to migration-009 tables.\n\n- `doc.go` — Package"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" doc for the three sink impls and their tables.\n- `sqlite.go` — Shared helpers; `queryClauses` builds WHERE clause + args from a `dispatch.Query`."} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- `round_trip_record_sink.go` — `Sink[RoundTripRecord]`; persists round-trip records to `round_trip_records`.\n- `side"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"_effect_sink.go` — `Sink[SideEffect]`; stores kind-discriminated JSON (Hint/Artifact/Audit/ResolvedRecord) in `"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"side_effects`.\n- `telemetry_event_sink.go` — `Sink[TelemetryEvent]`; writes telemetry/cost rows to `telemetry_events`.\n- `test"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"support_test.go` + per-sink `*_test.go` — temp-DB harness applying real migrations, plus unit tests with"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" fixtures.\n\n## `proxy/internal/embellish/`\nThe COMPOSE stage — polls `round_trip_records` and rolls them up into per-turn `tel"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"emetry_events`.\n\n- `embellish.go` — Entry point/driver: `New` + `Run(ctx)` poll loop reading round tr"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ips by cursor, writing per-turn events.\n- `composeturn.go` — Per-turn rollup: turn finality via terminal stop reasons + `turnGroup` ordering;"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" composes round trips into one `TelemetryEvent`.\n- `compose.go` — Shared field-mapping helpers: context-bag merge, `client_username` fall"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"back chain, install-time identity snapshot, internal/forward request-signal partitioning.\n- `embellish_test.go` — Tests with `RoundTripRecord` fixtures for single-"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" and multi-round-trip turn composition.\n\nThe three directories form a pipeline: **aggregator** writes raw `"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"round_trip_records` → **embellish** polls and composes them into per-turn `telemetry_events` → **sqlite sinks** are the persistence"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" layer both stages write through."}             }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":406,"cache_creation_input_tokens":13492,"cache_read_input_tokens":32745,"output_tokens":1169,"output_tokens_details":{"thinking_tokens":0},"iterations":[{"input_tokens":406,"output_tokens":1169,"cache_read_input_tokens":32745,"cache_creation_input_tokens":13492,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":13492},"type":"message"}]},"context_management":{"applied_edits":[]}}
+
+event: message_stop
+data: {"type":"message_stop"   }
+
