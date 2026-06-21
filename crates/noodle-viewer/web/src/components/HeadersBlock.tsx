@@ -4,6 +4,7 @@
 import { useMemo } from "react";
 import { Block } from "./Block";
 import type { ExchangePair } from "../types";
+import type { Usage } from "../store/derived/ooda";
 
 interface Props {
   pair: ExchangePair | undefined;
@@ -11,9 +12,31 @@ interface Props {
   rtIndex: number;
   rtTotal: number;
   ts: string;
+  /** This round-trip's own token usage — shown per-RT, never summed
+   *  across the turn (cached context is re-billed every round-trip, so
+   *  a turn-level sum double-counts it; ADR 056). */
+  usage?: Usage;
 }
 
-export function HeadersBlock({ pair, turnNum, rtIndex, rtTotal, ts }: Props) {
+/** Compact per-round-trip token chip, e.g. `1.2k↑ 340↓ · cache 244k`.
+ *  Returns null when no usage was captured. */
+export function usageChip(usage: Usage | undefined): string | null {
+  if (!usage) return null;
+  const parts: string[] = [];
+  if (usage.input_tokens != null) parts.push(`${fmtTokens(usage.input_tokens)}↑`);
+  if (usage.output_tokens != null) parts.push(`${fmtTokens(usage.output_tokens)}↓`);
+  const cache = usage.cache_read_input_tokens;
+  if (cache != null && cache > 0) parts.push(`cache ${fmtTokens(cache)}`);
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+/** Short token count: `999`, `1.2k`, `244k`. */
+function fmtTokens(n: number): string {
+  if (n < 1000) return String(n);
+  return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
+}
+
+export function HeadersBlock({ pair, turnNum, rtIndex, rtTotal, ts, usage }: Props) {
   const reqHeaders = useMemo(
     () => toEntries(pair?.request?.headers),
     [pair?.request?.headers],
@@ -23,10 +46,12 @@ export function HeadersBlock({ pair, turnNum, rtIndex, rtTotal, ts }: Props) {
     [pair?.response?.headers],
   );
   const total = reqHeaders.length + respHeaders.length;
-  const summary =
+  const base =
     rtTotal > 1
       ? `Turn ${turnNum} · roundtrip ${rtIndex}/${rtTotal}`
       : `Turn ${turnNum}`;
+  const tokens = usageChip(usage);
+  const summary = tokens ? `${base} · ${tokens}` : base;
   return (
     <Block
       role="headers"

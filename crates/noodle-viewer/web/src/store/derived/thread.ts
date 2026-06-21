@@ -6,7 +6,7 @@
 // `turn-divider` and `headers` markers so the structure is legible
 // without nesting.
 
-import type { AgentRun, ContentBlock, OodaTurn, RoundTrip } from "./ooda";
+import type { AgentRun, ContentBlock, OodaTurn, RoundTrip, Usage } from "./ooda";
 
 export type ThreadItem =
   | { kind: "turn-divider"; turnNum: number; ts: string; roundtrips: number; turnId?: string }
@@ -25,7 +25,18 @@ export type ThreadItem =
       mutated: boolean;
     }
   | { kind: "user"; ts: string; blocks: ContentBlock[]; variant: "input" | "tool-loop" }
-  | { kind: "headers"; ts: string; turnNum: number; rtIndex: number; rtTotal: number; requestId: string }
+  | {
+      kind: "headers";
+      ts: string;
+      turnNum: number;
+      rtIndex: number;
+      rtTotal: number;
+      requestId: string;
+      /** This round-trip's own token usage (ADR 052 §10 / 056). Per-RT,
+       *  never summed across the turn — each request re-presents the
+       *  carried context, so a turn-level sum would double-count it. */
+      usage?: Usage;
+    }
   | { kind: "thinking"; ts: string; text: string }
   | { kind: "agent-text"; ts: string; text: string }
   | { kind: "tool-use"; ts: string; toolUseId: string; name: string; input: unknown; result: ContentBlock | null; isError: boolean }
@@ -196,6 +207,7 @@ function pushRoundTrip(
     rtIndex: idx + 1,
     rtTotal: turn.roundtrips.length,
     requestId: rt.exchangeId,
+    usage: rt.usage,
   });
   for (const ab of rt.assistant) {
     switch (ab.type) {
