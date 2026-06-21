@@ -437,6 +437,13 @@ ORDER BY fp.path || printf('%06d', c.intra);
   fire.
 - **Claude Code nesting is one level.** The CC wire exposes only a child's own agent id, so
   deeper trees flatten to main. OpenCode's `x-parent-session-id` reconstructs arbitrary depth.
+- **Mid-stream attach orphans turns.** The streaming in-process detector
+  (`frame_tree.rs`) holds turn state only in memory and mints a non-reconstructible
+  random ULID, so a detector that starts after a session's opener (proxy restart /
+  late capture) emits `turn_id = None` for in-flight sub-agent / continuation RTs.
+  Recovery — seed turn state from the session's last persisted marks — is
+  [feature 063](../features/063-mid-stream-attach-turn-recovery.md); the §6 server
+  correlation here does not have this gap because it sees the whole capture.
 
 ---
 
