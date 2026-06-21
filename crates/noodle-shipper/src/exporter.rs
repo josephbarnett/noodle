@@ -16,7 +16,9 @@ use serde_json::{Value, json};
 use thiserror::Error;
 
 use crate::cursor::RollupsRow;
-use crate::mapping::{resource_attributes_for_batch, row_to_otlp_log, row_to_otlp_span};
+use crate::mapping::{
+    frame_agent_span, resource_attributes_for_batch, row_to_otlp_log, row_to_otlp_span,
+};
 
 /// Transport for the OTLP boundary. v1 supports HTTP/JSON only.
 /// gRPC + protobuf are tracked as future work — the JSON path is
@@ -163,12 +165,54 @@ pub fn build_resource_logs_payload(rows: &[RollupsRow]) -> Value {
 
 /// D1.1 — companion of [`build_resource_logs_payload`] for the
 /// `/v1/traces` endpoint. One `ResourceSpans` wrapping one
-/// `ScopeSpans` wrapping every span in the batch. Same resource
-/// attributes, same scope identity — only the inner records and the
-/// envelope key change.
+/// `ScopeSpans` wrapping the batch's spans.
+///
+/// ADR 057 — turn = trace, frame = `invoke_agent` span. The span set is:
+///
+/// - one `chat` span per round-trip ([`row_to_otlp_span`]), parented to its
+///   frame's `invoke_agent` span when the row is marked;
+/// - one `invoke_agent` span per `(turn_id, frame_id)` ([`frame_agent_span`]),
+///   timed to bracket its round-trips and parented to the spawning frame.
+///
+/// Every row gets a `chat` span. **Side-calls** (`role == "side_call"`, off-tree
+/// per ADR 052) and legacy/unmarked rows carry no `turn_id`/`frame_id`, so their
+/// chat span is parent-less under its own fallback trace (`session_hash` →
+/// `event_id`) — visible in trace UIs but off the turn tree, never gaining an
+/// `invoke_agent` parent.
 #[must_use]
 pub fn build_resource_spans_payload(rows: &[RollupsRow]) -> Value {
-    let spans: Vec<Value> = rows.iter().map(row_to_otlp_span).collect();
+    use std::collections::BTreeMap;
+
+    let mut spans: Vec<Value> = Vec::new();
+    // (turn_id, frame_id) → (min start nano, max end nano, representative idx).
+    let mut frames: BTreeMap<(String, String), (i64, i64, usize)> = BTreeMap::new();
+
+    for (idx, row) in rows.iter().enumerate() {
+        spans.push(row_to_otlp_span(row));
+
+        // Accumulate the frame envelope for marked, in-tree rows. Side-calls and
+        // unmarked rows have no frame_id, so they never enter the tree here.
+        if let (Some(turn), Some(frame)) = (
+            row.turn_id.as_deref().filter(|s| !s.is_empty()),
+            row.frame_id.as_deref().filter(|s| !s.is_empty()),
+        ) {
+            let start = row.timestamp.saturating_mul(1_000_000);
+            let end = start.saturating_add(row.latency_ms.saturating_mul(1_000_000));
+            frames
+                .entry((turn.to_owned(), frame.to_owned()))
+                .and_modify(|e| {
+                    e.0 = e.0.min(start);
+                    e.1 = e.1.max(end);
+                })
+                .or_insert((start, end, idx));
+        }
+    }
+
+    // One invoke_agent span per frame, bracketing its round-trips.
+    for (start, end, idx) in frames.into_values() {
+        spans.push(frame_agent_span(&rows[idx], start, end));
+    }
+
     let resource_attrs = resource_attributes_for_batch(rows);
     json!({
         "resourceSpans": [
@@ -277,5 +321,111 @@ mod tests {
         assert_eq!(scope["name"], "noodle-shipper");
         // version is the package version; just assert it's a non-empty string.
         assert!(!scope["version"].as_str().unwrap().is_empty());
+    }
+
+    fn marked_row(event_id: &str, turn: &str, frame: &str, parent: Option<&str>) -> RollupsRow {
+        let mut r = make_row(event_id);
+        r.turn_id = Some(turn.to_owned());
+        r.frame_id = Some(frame.to_owned());
+        r.parent_frame_id = parent.map(str::to_owned);
+        r.role = Some(
+            if parent.is_none() {
+                "main"
+            } else {
+                "sub_agent"
+            }
+            .to_owned(),
+        );
+        r.depth = Some(i64::from(parent.is_some()));
+        r
+    }
+
+    fn span_list(payload: &Value) -> Vec<Value> {
+        payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
+            .as_array()
+            .unwrap()
+            .clone()
+    }
+
+    /// True when this span's `frame_id` attribute equals `frame`.
+    fn is_frame(span: &Value, frame: &str) -> bool {
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["key"] == "frame_id" && a["value"]["stringValue"] == frame)
+    }
+
+    /// ADR 057 — turn = trace, frame = `invoke_agent` span. One turn with the
+    /// main frame (ROOT) + one sub-agent + a side-call. Asserts: every row gets
+    /// a chat span; two `invoke_agent` spans; in-tree chat spans parent to their
+    /// frame; the sub-agent frame parents to ROOT; the in-tree spans share the
+    /// turn trace; the side-call rides its own trace, parent-less, off the tree.
+    #[test]
+    fn span_tree_parents_chat_spans_under_invoke_agent_frames() {
+        let mut side = make_row("side");
+        side.role = Some("side_call".into());
+        let rows = vec![
+            marked_row("root-a", "turn-1", "ROOT", None),
+            marked_row("root-b", "turn-1", "ROOT", None),
+            marked_row("sub-a", "turn-1", "agent-7", Some("ROOT")),
+            side,
+        ];
+        let all = span_list(&build_resource_spans_payload(&rows));
+
+        let chat: Vec<&Value> = all.iter().filter(|s| s["kind"] == 3_i64).collect();
+        let agents: Vec<&Value> = all.iter().filter(|s| s["kind"] == 1_i64).collect();
+        // 4 chat spans (incl the side-call) + 2 invoke_agent spans.
+        assert_eq!(chat.len(), 4, "every round-trip gets a chat span");
+        assert_eq!(
+            agents.len(),
+            2,
+            "one invoke_agent span per (turn, frame); the side-call has none"
+        );
+
+        let root_frame = agents.iter().find(|s| is_frame(s, "ROOT")).unwrap();
+        let sub_frame = agents.iter().find(|s| is_frame(s, "agent-7")).unwrap();
+        // ROOT is the trace root; the sub-agent frame parents to it.
+        assert!(
+            root_frame.get("parentSpanId").is_none(),
+            "ROOT invoke_agent span is the trace root"
+        );
+        assert_eq!(
+            sub_frame["parentSpanId"], root_frame["spanId"],
+            "sub-agent frame ← ROOT frame"
+        );
+
+        // Each in-tree chat span parents to its own frame's invoke_agent span.
+        let sub_chat = chat.iter().find(|s| is_frame(s, "agent-7")).unwrap();
+        let root_chat = chat.iter().find(|s| is_frame(s, "ROOT")).unwrap();
+        assert_eq!(
+            sub_chat["parentSpanId"], sub_frame["spanId"],
+            "sub-agent chat ← its invoke_agent frame"
+        );
+        assert_eq!(
+            root_chat["parentSpanId"], root_frame["spanId"],
+            "ROOT chat ← ROOT invoke_agent frame"
+        );
+
+        // The turn's spans share one trace.
+        let turn_trace = root_frame["traceId"].clone();
+        for s in [root_chat, sub_chat, *root_frame, *sub_frame] {
+            assert_eq!(s["traceId"], turn_trace, "in-tree span on the turn trace");
+        }
+
+        // The side-call: its own chat span, off the turn tree — different trace,
+        // no parent (it has no frame_id attribute at all).
+        let side_chat = chat
+            .iter()
+            .find(|s| !is_frame(s, "ROOT") && !is_frame(s, "agent-7"))
+            .expect("side-call chat span present");
+        assert!(
+            side_chat.get("parentSpanId").is_none(),
+            "side-call span is parent-less"
+        );
+        assert_ne!(
+            side_chat["traceId"], turn_trace,
+            "side-call rides its own trace, off the turn tree"
+        );
     }
 }
