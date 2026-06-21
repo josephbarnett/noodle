@@ -42,6 +42,10 @@ export function OodaMode({ pairs, parseCache, getMarks }: Props) {
   // When a session is selected, the user can drill into a specific
   // agent run inside it. Default = main agent (the first run).
   const [activeRunIdx, setActiveRunIdx] = useState<number>(1);
+  // Turn the rail asked the main pane to reveal (story 057). `null`
+  // until the user clicks a turn leaf; cleared when the run/session
+  // changes by other means so no stale highlight lingers.
+  const [activeTurnNum, setActiveTurnNum] = useState<number | null>(null);
 
   useEffect(() => {
     window.localStorage.setItem(SORT_STORAGE_KEY, sort);
@@ -86,15 +90,23 @@ export function OodaMode({ pairs, parseCache, getMarks }: Props) {
         sessions={sessions}
         activeSessionId={activeId}
         activeRunIdx={activeRun?.index ?? null}
+        activeTurnNum={activeTurnNum}
         sort={sort}
         onSort={setSort}
         onSelectSession={(id) => {
           setActiveId(id);
           setActiveRunIdx(1);
+          setActiveTurnNum(null);
         }}
         onSelectRun={(sid, runIdx) => {
           setActiveId(sid);
           setActiveRunIdx(runIdx);
+          setActiveTurnNum(null);
+        }}
+        onSelectTurn={(sid, runIdx, turnNum) => {
+          setActiveId(sid);
+          setActiveRunIdx(runIdx);
+          setActiveTurnNum(turnNum);
         }}
       />
       <div className="ooda-thread">
@@ -139,7 +151,11 @@ export function OodaMode({ pairs, parseCache, getMarks }: Props) {
               session={active}
               run={activeRun}
               pairsById={pairsById}
-              onJumpToRun={(runIdx) => setActiveRunIdx(runIdx)}
+              onJumpToRun={(runIdx) => {
+                setActiveRunIdx(runIdx);
+                setActiveTurnNum(null);
+              }}
+              activeTurn={activeTurnNum}
             />
           </>
         ) : (
