@@ -888,6 +888,27 @@ button.danger:hover:not(:disabled) { background: var(--error-soft); }
   color: var(--text-faint);
   margin-right: 0.35em;
 }
+/* Turn leaves under a run (story 057) — lighter than run rows; the
+   shared `.session-item.active` rule supplies the selected highlight. */
+.session-rail .session-item.session-turn {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+.session-rail .session-item.session-turn .session-label {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  margin-bottom: 0;
+}
+.session-rail .session-item.session-turn.active .session-label {
+  color: var(--text);
+}
+.session-rail .session-item.session-turn .session-meta-secondary {
+  margin-top: 0;
+}
+/* The turn the rail revealed, marked in the main pane (story 057). */
+.turn-group.active-turn {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 .session-rail .session-bg-tag {
   margin-left: 0.4em;
   padding: 0.05em 0.4em;

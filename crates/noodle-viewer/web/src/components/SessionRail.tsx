@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { AgentRun, OodaSession } from "../store/derived/ooda";
 
 /**
@@ -51,20 +52,27 @@ interface Props {
   sessions: OodaSession[];
   activeSessionId: string | null;
   activeRunIdx: number | null;
+  /** Turn highlighted in the tree (story 057); scoped to the active
+   *  session + run. `null` when no turn is selected. */
+  activeTurnNum: number | null;
   sort: SessionSort;
   onSort: (s: SessionSort) => void;
   onSelectSession: (id: string) => void;
   onSelectRun: (sessionId: string, runIdx: number) => void;
+  /** Reveal a specific turn of a run in the main pane (story 057). */
+  onSelectTurn: (sessionId: string, runIdx: number, turnNum: number) => void;
 }
 
 export function SessionRail({
   sessions,
   activeSessionId,
   activeRunIdx,
+  activeTurnNum,
   sort,
   onSort,
   onSelectSession,
   onSelectRun,
+  onSelectTurn,
 }: Props) {
   return (
     <aside className="session-rail">
@@ -79,16 +87,21 @@ export function SessionRail({
         </button>
       </header>
       <ul className="session-list">
-        {sessions.map((s) => (
-          <SessionItem
-            key={s.id}
-            session={s}
-            isActiveSession={s.id === activeSessionId}
-            activeRunIdx={s.id === activeSessionId ? activeRunIdx : null}
-            onSelectSession={() => onSelectSession(s.id)}
-            onSelectRun={(idx) => onSelectRun(s.id, idx)}
-          />
-        ))}
+        {sessions.map((s) => {
+          const isActiveSession = s.id === activeSessionId;
+          return (
+            <SessionItem
+              key={s.id}
+              session={s}
+              isActiveSession={isActiveSession}
+              activeRunIdx={isActiveSession ? activeRunIdx : null}
+              activeTurnNum={isActiveSession ? activeTurnNum : null}
+              onSelectSession={() => onSelectSession(s.id)}
+              onSelectRun={(idx) => onSelectRun(s.id, idx)}
+              onSelectTurn={(idx, turnNum) => onSelectTurn(s.id, idx, turnNum)}
+            />
+          );
+        })}
       </ul>
     </aside>
   );
@@ -98,14 +111,18 @@ function SessionItem({
   session,
   isActiveSession,
   activeRunIdx,
+  activeTurnNum,
   onSelectSession,
   onSelectRun,
+  onSelectTurn,
 }: {
   session: OodaSession;
   isActiveSession: boolean;
   activeRunIdx: number | null;
+  activeTurnNum: number | null;
   onSelectSession: () => void;
   onSelectRun: (idx: number) => void;
+  onSelectTurn: (idx: number, turnNum: number) => void;
 }) {
   const totalRoundtrips = session.agentRuns.reduce(
     (n, r) => n + r.turns.reduce((m, t) => m + t.roundtrips.length, 0),
@@ -134,32 +151,59 @@ function SessionItem({
         // Depth 0 root agents sit one level under the session;
         // children indent further per ADR 048 §11 item 0.
         const itemDepth = depth + 1;
+        const runActive = isActiveSession && activeRunIdx === run.index;
         return (
-          <li
-            key={run.index}
-            className={`session-item depth-${itemDepth}${
-              isActiveSession && activeRunIdx === run.index ? " active" : ""
-            }`}
-            style={{ paddingLeft: `${0.6 + depth * 1.1}rem` }}
-            onClick={() => onSelectRun(run.index)}
-          >
-            <div className="session-label" title={`run #${run.index}`}>
-              <span className="session-tree">↳</span>
-              {run.isMain
-                ? "main agent"
-                : run.spawnedBy?.subagentType ?? `sub-agent #${run.index}`}
-              {run.spawnedBy?.runInBackground && (
-                <span className="session-bg-tag">bg</span>
-              )}
-            </div>
-            <div className="session-meta">
-              <span className="session-ts">{shortTime(run.startedAt)}</span>
-            </div>
-            <div className="session-meta-secondary">
-              {run.turns.length} turn{run.turns.length === 1 ? "" : "s"} ·{" "}
-              {run.turns.reduce((n, t) => n + t.roundtrips.length, 0)} rt
-            </div>
-          </li>
+          <Fragment key={run.index}>
+            <li
+              className={`session-item depth-${itemDepth}${runActive ? " active" : ""}`}
+              style={{ paddingLeft: `${0.6 + depth * 1.1}rem` }}
+              onClick={() => onSelectRun(run.index)}
+            >
+              <div className="session-label" title={`run #${run.index}`}>
+                <span className="session-tree">↳</span>
+                {run.isMain
+                  ? "main agent"
+                  : run.spawnedBy?.subagentType ?? `sub-agent #${run.index}`}
+                {run.spawnedBy?.runInBackground && (
+                  <span className="session-bg-tag">bg</span>
+                )}
+              </div>
+              <div className="session-meta">
+                <span className="session-ts">{shortTime(run.startedAt)}</span>
+              </div>
+              <div className="session-meta-secondary">
+                {run.turns.length} turn{run.turns.length === 1 ? "" : "s"} ·{" "}
+                {run.turns.reduce((n, t) => n + t.roundtrips.length, 0)} rt
+              </div>
+            </li>
+            {/* Turn leaves: clicking one reveals that turn in the main
+                pane. Live captures grow this list as turns arrive; an
+                in-flight first turn still shows one node (story 057). */}
+            {run.turns.map((turn) => {
+              const turnActive = runActive && activeTurnNum === turn.turnNum;
+              return (
+                <li
+                  key={`${run.index}-t${turn.turnNum}`}
+                  className={`session-item session-turn depth-${itemDepth + 1}${
+                    turnActive ? " active" : ""
+                  }`}
+                  style={{ paddingLeft: `${0.6 + (depth + 1) * 1.1}rem` }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectTurn(run.index, turn.turnNum);
+                  }}
+                >
+                  <div className="session-label" title={turn.turnId}>
+                    <span className="session-tree">·</span>
+                    Turn {turn.turnNum}
+                  </div>
+                  <div className="session-meta-secondary">
+                    {turn.roundtrips.length} rt
+                  </div>
+                </li>
+              );
+            })}
+          </Fragment>
         );
       })}
     </>

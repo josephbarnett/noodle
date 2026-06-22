@@ -4,7 +4,7 @@
 // THINKING (amber collapsed), TOOL (orange), with byte sizes and
 // timestamps on every row.
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Block } from "./Block";
 import { HeadersBlock } from "./HeadersBlock";
 import { classifyTool } from "../lib/toolBucket";
@@ -22,9 +22,12 @@ interface Props {
   /** Switch to a different agent run inside the same session
    *  (e.g., from a parent's Agent tool_use → click → child run). */
   onJumpToRun?: (runIdx: number) => void;
+  /** Turn the rail asked us to reveal — scrolled into view and
+   *  highlighted (story 057). `null` = no rail-driven selection. */
+  activeTurn?: number | null;
 }
 
-export function OodaThread({ session, run, pairsById, onJumpToRun }: Props) {
+export function OodaThread({ session, run, pairsById, onJumpToRun, activeTurn }: Props) {
   // Within this session, index sub-agent runs by the tool_use id that
   // spawned them so the parent's Agent tool block can show a link.
   const childRunByToolUseId = useMemo(() => {
@@ -86,6 +89,25 @@ export function OodaThread({ session, run, pairsById, onJumpToRun }: Props) {
     setCollapsed(new Set());
   };
 
+  // Rail-driven selection (story 057): reveal the chosen turn — expand it
+  // if collapsed, drop out of solo if it hides it, and scroll it into view.
+  // Keyed on the run/session too so picking the same turn number in a
+  // different run re-scrolls, but live SSE ticks (which don't change these)
+  // don't.
+  useEffect(() => {
+    if (activeTurn == null) return;
+    setSolo((s) => (s !== null && s !== activeTurn ? null : s));
+    setCollapsed((prev) => {
+      if (!prev.has(activeTurn)) return prev;
+      const next = new Set(prev);
+      next.delete(activeTurn);
+      return next;
+    });
+    document
+      .getElementById(`ooda-turn-${activeTurn}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [activeTurn, run.index, session.id]);
+
   // Partition items into per-turn groups so we can hide a whole
   // turn's body when collapsed. Turn-divider and turn-end items
   // bookend each group; non-turn items (pre-turn, post-session)
@@ -121,8 +143,15 @@ export function OodaThread({ session, run, pairsById, onJumpToRun }: Props) {
           );
         }
         const open = isOpen(g.turnNum);
+        const isActiveTurn = activeTurn != null && g.turnNum === activeTurn;
         return (
-          <div key={`t-${g.turnNum}`} className={`turn-group${open ? "" : " collapsed"}`}>
+          <div
+            key={`t-${g.turnNum}`}
+            id={`ooda-turn-${g.turnNum}`}
+            className={`turn-group${open ? "" : " collapsed"}${
+              isActiveTurn ? " active-turn" : ""
+            }`}
+          >
             {g.items.map((it, i) => {
               // Render the turn-divider as a clickable element.
               if (it.kind === "turn-divider") {
