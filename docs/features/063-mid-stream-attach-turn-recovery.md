@@ -34,29 +34,62 @@ memory.
 ## Decision
 
 On first sighting of a `session_id` in a fresh detector, **seed turn state from
-the last persisted marks for that session** instead of starting empty. Source of
-truth is the proxy's **own `tap.jsonl`** (`WireMarks` carries
-`role`/`frame_id`/`parent_frame_id`/`depth`/`turn_id`, `wire.rs:367-382`) — the
-proxy rehydrates from its own write-ahead log, not the downstream `rollups.db`
-(keeps the hexagonal boundary; the SQLite columns at `sqlite.rs:386-393` are an
-equivalent fallback if tap.jsonl is unavailable).
+the last persisted marks for that session** instead of starting empty.
+
+**Source = the SQLite marks store, behind an ADR 050 session-state port — not
+`tap.jsonl`.** Recovery is a point lookup ("the last turn state for *this*
+session"), and the DB is built for exactly that:
+
+```sql
+SELECT turn_id, role, frame_id, parent_frame_id, depth, stop_reason
+FROM ai_telemetry_v_0_0_2
+WHERE session_id = ? ORDER BY timestamp DESC LIMIT 1
+```
+
+- `ai_telemetry_v_0_0_2` already carries the seed columns (`session_id`,
+  `turn_id`, `role`, `frame_id`, `parent_frame_id`, `depth` —
+  `sqlite.rs:386-393`) and indexes the lookup (`idx_session_id`, `idx_timestamp`
+  — `sqlite.rs:472-473`). The seed state *is* the row — no `WireMarks` re-parse.
+- `tap.jsonl` is the wrong tool here: an append-only ingest log, so a
+  per-session lookup means scanning from the end and JSON-parsing each line.
+  Good for sequential ingest, bad for point recovery.
+- The embellish poll lag (~250 ms) is irrelevant for restart recovery: the
+  state being recovered was flushed *before* the crash. (Lag would only matter
+  for live same-process RT-to-RT continuity, which the in-memory state already
+  handles.)
+
+**Wrap it in the [ADR 050](../adrs/050-session-state-service.md) `MarkingStateStore`
+port — don't hardcode a `SELECT` against `rollups.db`.** The proxy depends on the
+port; the adapter does the lookup. The SQLite read is the cheapest backend now
+(columns + indexes already exist); Valkey is the multi-replica backend ADR 050
+already chose. The read is **read-only and best-effort** (row absent → `turn_id`
+None → self-heal), so it is a soft dependency, not a hard coupling to the
+telemetry schema.
 
 - Seed `current_turn_id` from the session's last marked round-trip.
 - If the session has **no** persisted marks → `turn_id` stays `None` (a true
   pre-capture orphan); it self-heals when the next **main** RT opens a turn.
 
-## The one schema/wire gap
+> Note: `ai_telemetry_v_0_0_2` is the *telemetry* store owned by embellish, so
+> reusing it conflates telemetry with session-state. It is the pragmatic backend
+> for single-process restart today; ADR 050's cleaner end-state is a dedicated
+> session-state store the proxy owns (the same port, a different adapter).
 
-Turn-id recovery works with data already persisted. Deciding the **next main
+## The one schema gap
+
+Turn-id recovery works with columns already persisted. Deciding the **next main
 RT**'s "continue vs. open new turn" needs the last turn's **open/closed** state,
-which is **not persisted** — neither `WireMarks` nor the SQLite schema carries
-`stop_reason` or a turn-open flag. Add one field via the idempotent ADD COLUMN
+which is **not persisted** — the `ai_telemetry_v_0_0_2` schema carries no
+`stop_reason` or turn-open flag. Add one column via the idempotent ADD COLUMN
 pattern (ADR 047):
 
-- Persist `stop_reason` (or an explicit `turn_open: bool`) on the round-trip
-  marks → `tap.jsonl` `WireMarks` and the `ai_telemetry_v_0_0_2` table.
+- Add `stop_reason` (or an explicit `turn_open INTEGER`) to
+  `ai_telemetry_v_0_0_2`. Embellish already decodes the response `stop_reason`
+  (it reads the SSE `message_delta`), so it can populate the column with no
+  `WireMarks`/`tap.jsonl` change — the column is purely a DB-side addition.
 - Seed `in_turn` from it. (The sub-agent-orphan case does **not** need this — a
-  sub-agent attaches to the open turn regardless.)
+  sub-agent attaches to the open turn regardless, so the column matters only for
+  the continuation-main-RT case.)
 
 ## Acceptance criteria
 
@@ -69,13 +102,20 @@ pattern (ADR 047):
   `None`.
 - A `session_id` with no prior persisted marks yields `turn_id=None`, then opens
   turn-1 on the first main RT (self-heal).
-- `stop_reason`/`turn_open` round-trips through `WireMarks` → tap.jsonl and the
-  SQLite column (idempotent migration; existing rows unaffected).
+- The `stop_reason`/`turn_open` column is added to `ai_telemetry_v_0_0_2` and
+  populated by embellish (idempotent migration; existing rows unaffected), then
+  read back in the seed query.
+- The recovery read goes through the ADR 050 `MarkingStateStore` port; the
+  SQLite adapter is one impl. Unit tests exercise the detector against an
+  in-memory store impl, so no DB is needed in the test.
 
 ## Dependencies / notes
 
-- No new architecture; horizontal extension of the existing marking pipeline.
-- Multi-replica (not single-process restart) is ADR 050's shared-store version
-  of the same seed mechanism — out of scope here; note the seam.
-- Mind the embellish write-lag (~250ms poll): tap.jsonl is the lower-latency
-  seed source and is the proxy's own output, so prefer it.
+- New seam: a `MarkingStateStore` port (ADR 050) that the marking detector
+  reads on cold-start. SQLite adapter (query `ai_telemetry_v_0_0_2`) is the
+  single-process backend; Valkey is the multi-replica backend (ADR 050).
+- The proxy gains a **read-only, best-effort** dependency on the marks store —
+  row absent → `turn_id` None → self-heal. Soft dependency, not a hard coupling.
+- The embellish write-lag (~250 ms) does not affect restart recovery: the state
+  recovered was flushed before the crash. Lag matters only for live same-process
+  RT-to-RT continuity, which the in-memory state already covers.
