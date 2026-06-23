@@ -160,6 +160,61 @@ fn messages_mut(body: &mut Value) -> Option<&mut Vec<Value>> {
     body.get_mut("messages")?.as_array_mut()
 }
 
+/// True when this request is a **genuine new user-text prompt** — the
+/// only shape the enhancer injects into.
+///
+/// The target turn is the last `role == "user"` message, **skipping any
+/// trailing `role == "system"` entries** (a system message can follow
+/// the user turn on the wire — verified in the captured traffic — and
+/// never changes the injection decision). The turn qualifies only when
+/// it leads with `text` (a bare string counts) and carries **no**
+/// `tool_result` block: a tool-result continuation is the agent
+/// answering a prior `tool_use`, not a new prompt, so it must pass
+/// through untouched (ADR 048 §5.1.2).
+///
+/// This gate is content-shape only; it does not classify side-calls
+/// (the monitor/title/topic calls are genuine-looking user text) — the
+/// caller pairs it with the body-derived side-call signal.
+#[must_use]
+pub fn is_genuine_user_text_turn(body: &Value) -> bool {
+    let Some(messages) = body.get("messages").and_then(Value::as_array) else {
+        return false;
+    };
+    // The target is the last non-`system` message: trailing `system`
+    // entries are skipped, and that message must be a `user` turn (an
+    // assistant turn there means there is no trailing user prompt).
+    let role_of = |m: &Value| m.get("role").and_then(Value::as_str).map(str::to_owned);
+    let Some(content) = messages
+        .iter()
+        .rev()
+        .find(|m| role_of(m).as_deref() != Some("system"))
+        .filter(|m| role_of(m).as_deref() == Some("user"))
+        .and_then(|m| m.get("content"))
+    else {
+        return false;
+    };
+    // A bare string is genuine user text.
+    if content.is_string() {
+        return true;
+    }
+    let Some(blocks) = content.as_array() else {
+        return false;
+    };
+    // Any tool_result block ⇒ a continuation; never enhance.
+    if blocks
+        .iter()
+        .any(|b| b.get("type").and_then(Value::as_str) == Some("tool_result"))
+    {
+        return false;
+    }
+    // Otherwise the turn must lead with a text block.
+    blocks
+        .first()
+        .and_then(|b| b.get("type"))
+        .and_then(Value::as_str)
+        == Some("text")
+}
+
 /// Locate the first/last `role == "user"` message, normalize its
 /// `content` to the block-array form the API accepts (a string
 /// becomes a single text block), and return the block vec.
@@ -214,6 +269,75 @@ mod tests {
             .iter()
             .filter_map(|b| b.get("text").and_then(Value::as_str))
             .collect()
+    }
+
+    // ── is_genuine_user_text_turn — the injection decision (verified
+    //    against captures/max/*.mitm shapes) ──────────────────────────
+
+    #[test]
+    fn genuine_opener_is_injectable() {
+        let b = json!({ "messages": [
+            { "role": "user", "content": [{ "type": "text", "text": "do the thing" }] }
+        ] });
+        assert!(is_genuine_user_text_turn(&b));
+    }
+
+    #[test]
+    fn bare_string_user_content_is_injectable() {
+        let b = json!({ "messages": [{ "role": "user", "content": "hello" }] });
+        assert!(is_genuine_user_text_turn(&b));
+    }
+
+    #[test]
+    fn tool_result_continuation_is_not_injectable() {
+        // Last user turn answers a tool_use → continuation, never enhance.
+        let b = json!({ "messages": [
+            { "role": "user", "content": [{ "type": "text", "text": "ask" }] },
+            { "role": "assistant", "content": [{ "type": "tool_use", "id": "t", "name": "Bash", "input": {} }] },
+            { "role": "user", "content": [{ "type": "tool_result", "tool_use_id": "t", "content": "ok" }] }
+        ] });
+        assert!(!is_genuine_user_text_turn(&b));
+    }
+
+    #[test]
+    fn tool_result_with_trailing_text_is_still_not_injectable() {
+        // A tool_result turn that also carries text is still a continuation.
+        assert!(!is_genuine_user_text_turn(&anthropic_body()));
+    }
+
+    #[test]
+    fn trailing_system_is_skipped_to_find_the_user_turn() {
+        // A role:system message can follow the user turn on the wire; the
+        // decision ignores it and lands on the genuine user-text turn.
+        let b = json!({ "messages": [
+            { "role": "user", "content": [{ "type": "text", "text": "real prompt" }] },
+            { "role": "system", "content": "injected-context" }
+        ] });
+        assert!(is_genuine_user_text_turn(&b));
+    }
+
+    #[test]
+    fn trailing_system_over_a_tool_result_is_not_injectable() {
+        let b = json!({ "messages": [
+            { "role": "user", "content": [{ "type": "tool_result", "tool_use_id": "t", "content": "ok" }] },
+            { "role": "system", "content": "x" }
+        ] });
+        assert!(!is_genuine_user_text_turn(&b));
+    }
+
+    #[test]
+    fn assistant_last_turn_is_not_injectable() {
+        let b = json!({ "messages": [
+            { "role": "user", "content": [{ "type": "text", "text": "ask" }] },
+            { "role": "assistant", "content": [{ "type": "text", "text": "answer" }] }
+        ] });
+        assert!(!is_genuine_user_text_turn(&b));
+    }
+
+    #[test]
+    fn no_messages_is_not_injectable() {
+        assert!(!is_genuine_user_text_turn(&json!({ "messages": [] })));
+        assert!(!is_genuine_user_text_turn(&json!({})));
     }
 
     #[test]
