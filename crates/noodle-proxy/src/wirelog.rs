@@ -1584,11 +1584,21 @@ fn emit(
     // latency are measurable (e.g. a synthesized error response
     // with no body), the whole `usage` block is omitted to keep
     // `tap.jsonl` cells lean.
-    let (tokens, service_tier, inference_geo) = if let Some(events) = decoded_events.as_deref() {
-        let usage_val = noodle_adapters::provider::anthropic_events::last_usage_value_in(events);
-        let tokens = usage_val.and_then(parse_usage_value);
-        let (tier, geo) = usage_val.map_or((None, None), parse_usage_envelope);
-        (tokens, tier, geo)
+    // Primary source: the engine-decoded SSE events. Non-streaming
+    // (`application/json`) responses carry their usage in the response
+    // body, not an SSE `message_delta`, so the decoder emits none —
+    // fall back to a byte scan of `accumulated_in` (the response body),
+    // which finds the last `"usage":{...}` for both streaming and
+    // non-streaming shapes. Without this, non-streaming side-calls
+    // (security monitor / title / topic classifiers) drop their
+    // 15k–33k cache-read tokens entirely (verified against
+    // `captures/max/*.mitm`).
+    let decoded_usage = decoded_events
+        .as_deref()
+        .and_then(noodle_adapters::provider::anthropic_events::last_usage_value_in);
+    let (tokens, service_tier, inference_geo) = if let Some(usage_val) = decoded_usage {
+        let (tier, geo) = parse_usage_envelope(usage_val);
+        (parse_usage_value(usage_val), tier, geo)
     } else {
         let tokens = extract_last_usage(accumulated_in);
         let (tier, geo) = extract_last_usage_envelope(accumulated_in);
@@ -2544,6 +2554,21 @@ data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input
             u.vendor_extras.is_empty(),
             "canonical fields shouldn't flow into vendor_extras"
         );
+    }
+
+    #[test]
+    fn extracts_usage_from_non_streaming_json_body() {
+        // Non-streaming (`application/json`) side-call response: usage
+        // rides the response BODY, not an SSE `message_delta`. Shape
+        // from captures/max/parent-parallel-subagents.mitm (a monitor
+        // call). Without the byte-scan fallback in `finalize`, these
+        // 15k cache-read tokens were dropped entirely.
+        let body = br#"{"id":"msg_01","type":"message","role":"assistant","model":"claude-haiku-4-5","content":[{"type":"text","text":"x"}],"stop_reason":"stop_sequence","stop_sequence":"</block>","usage":{"input_tokens":106,"cache_creation_input_tokens":18458,"cache_read_input_tokens":15095,"output_tokens":7,"service_tier":"standard"}}"#;
+        let u = extract_last_usage(body).expect("usage from non-streaming body");
+        assert_eq!(u.input, 106);
+        assert_eq!(u.output, 7);
+        assert_eq!(u.cached_read, Some(15095), "cache-read no longer dropped");
+        assert_eq!(u.cached_creation, Some(18458));
     }
 
     #[test]
