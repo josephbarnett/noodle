@@ -17,6 +17,7 @@ use bytes::Bytes;
 use noodle_core::config::context::Enhancement;
 use noodle_core::{BoxError, ContextEnhancer, DiscoverContext, EnhanceContext, FieldWriter};
 
+use crate::marking::frame_signals;
 use crate::transform::placement;
 
 // ── NoOp ────────────────────────────────────────────────────────────
@@ -72,8 +73,12 @@ impl ContextEnhancer for NoOpEnhancer {
 /// 1. Body parses as JSON and is Anthropic-shaped
 ///    ([`is_anthropic_shaped`] — top-level `system` or
 ///    Anthropic-only block types).
-/// 2. Not a quota probe (`max_tokens == 1` — the agent's
-///    cheapest-possible preflight; not a real turn, ADR 048 §5.2).
+/// 2. A **genuine new user-text prompt** — not a side-call (quota
+///    probe `max_tokens == 1`, security monitor, title/topic
+///    classifier, compaction recap; [`frame_signals::request_signals`])
+///    and not a tool-result continuation
+///    ([`placement::is_genuine_user_text_turn`]). Injecting into a
+///    side-call burns its token budget and degrades the agent.
 /// 3. Directive not already present (idempotence).
 ///
 /// Every placement is fail-soft (§5.3): a placement whose
@@ -107,12 +112,23 @@ impl ContextEnhancer for ConfiguredAnthropicEnhancer {
         if !is_anthropic_shaped(&parsed) {
             return Ok(body);
         }
-        // Quota probe: max_tokens == 1 is the agent's preflight
-        // shape — not a real turn; enhancing wastes tokens and
-        // could distort the probe (ADR 048 §5.2; the ADR's
-        // additional `claude-haiku-*` model conjunct is dropped —
-        // model-name matching rots, max_tokens == 1 suffices).
-        if parsed.get("max_tokens").and_then(serde_json::Value::as_u64) == Some(1) {
+        // Inject only into a genuine new user-text prompt. Two classes
+        // pass through untouched, both verified against captured
+        // traffic (`captures/max/*.mitm`):
+        //   - **Side-calls** — the agent's internal calls: quota probe
+        //     (`max_tokens == 1`), security monitor / title / topic
+        //     classifiers (non-streaming, tiny budget, `<transcript>` /
+        //     `<session>` wrapper text), and the compaction recap.
+        //     Injecting our directive makes them spend their budget
+        //     emitting our markers and terminate on `max_tokens`
+        //     instead of their `stop_sequence` — we degrade the agent.
+        //   - **Tool-result continuations** — a user turn answering a
+        //     prior `tool_use` is not a new prompt; a trailing
+        //     `role: "system"` message is skipped when locating the
+        //     turn (see [`placement::is_genuine_user_text_turn`]).
+        if frame_signals::request_signals(&body).side_call
+            || !placement::is_genuine_user_text_turn(&parsed)
+        {
             return Ok(body);
         }
         // Idempotence: the operator's verbatim text appearing
@@ -532,6 +548,61 @@ mod tests {
         assert_eq!(
             out, probe,
             "max_tokens == 1 preflight must pass through untouched"
+        );
+    }
+
+    #[test]
+    fn configured_enhancer_skips_monitor_side_call() {
+        use noodle_core::config::context::Placement;
+        let s = session();
+        let inj = anthropic_enhancer(Placement::UserPrepend);
+        // Security monitor / classifier: non-streaming, 64-token budget,
+        // `<transcript>` wrapper text (captures/max/*.mitm). Injecting
+        // here makes it terminate on max_tokens instead of stop_sequence.
+        let monitor = Bytes::from_static(
+            br#"{"model":"claude-haiku-4-5","max_tokens":64,"stop_sequences":["</block>"],"system":[{"type":"text","text":"agent"}],"messages":[{"role":"user","content":[{"type":"text","text":"<transcript>\nBash find ..."}]}]}"#,
+        );
+        let out = inj.enhance(&ctx(&s), monitor.clone()).unwrap();
+        assert_eq!(
+            out, monitor,
+            "monitor side-call must pass through untouched"
+        );
+    }
+
+    #[test]
+    fn configured_enhancer_skips_tool_result_continuation() {
+        use noodle_core::config::context::Placement;
+        let s = session();
+        let inj = anthropic_enhancer(Placement::UserPrepend);
+        // The agent answering a prior tool_use is a continuation, not a
+        // new prompt — never enhance (captures show this is the bulk of
+        // mis-injected traffic).
+        let cont = Bytes::from_static(
+            br#"{"model":"claude-opus-4-7","max_tokens":64000,"system":[{"type":"text","text":"agent"}],"messages":[{"role":"user","content":[{"type":"text","text":"go"}]},{"role":"assistant","content":[{"type":"tool_use","id":"t","name":"Bash","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"ok"}]}]}"#,
+        );
+        let out = inj.enhance(&ctx(&s), cont.clone()).unwrap();
+        assert_eq!(
+            out, cont,
+            "tool-result continuation must pass through untouched"
+        );
+    }
+
+    #[test]
+    fn configured_enhancer_enhances_genuine_prompt_past_trailing_system() {
+        use noodle_core::config::context::Placement;
+        let s = session();
+        let inj = anthropic_enhancer(Placement::UserPrepend);
+        // A trailing role:system follows the user turn — ignored; the
+        // genuine user-text prompt still gets the directive.
+        let body = Bytes::from_static(
+            br#"{"model":"claude-opus-4-7","max_tokens":32000,"system":[{"type":"text","text":"agent"}],"messages":[{"role":"user","content":[{"type":"text","text":"real prompt"}]},{"role":"system","content":"ctx"}]}"#,
+        );
+        let out = inj.enhance(&ctx(&s), body).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(
+            v["messages"][0]["content"][0]["text"],
+            "<system-reminder>VERBATIM OPERATOR TEXT</system-reminder>",
+            "genuine prompt enhanced despite the trailing system message"
         );
     }
 
