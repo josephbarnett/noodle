@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="noodle-com" name="noodle Component Object Model">
-        <mxGraphModel dx="3575" dy="1853" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="2400" pageHeight="1700" math="0" shadow="0">
+        <mxGraphModel dx="3575" dy="1853" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="2700" pageHeight="1700" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -125,7 +125,7 @@
                 <mxCell id="d-norm-evt" value="NormalizedEvent&#xa;TurnStart · Token · ToolCall&#xa;ToolResult · TurnEnd · Metadata&#xa;EventSource (Upstream | Mutated)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" parent="lane-d" vertex="1">
                     <mxGeometry x="280" y="160" width="240" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="d-session" value="Session · TurnId&#xa;parent_session_id&#xa;turn lineage" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" parent="lane-d" vertex="1">
+                <mxCell id="d-session" value="Session · SessionId · SessionKey&#xa;attribution accumulator (Resolved)&#xa;NOT turn lineage — see Marking column, lane E" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" parent="lane-d" vertex="1">
                     <mxGeometry x="540" y="160" width="240" height="90" as="geometry"/>
                 </mxCell>
                 <mxCell id="d-marker" value="Marker · ProviderChunk&#xa;ToolCall · ToolResult&#xa;raw-byte provenance" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" parent="lane-d" vertex="1">
@@ -139,7 +139,7 @@
                 </mxCell>
 
                 <mxCell id="lane-e" value="E · Adapter implementations   (noodle-adapters — concrete impls of core interfaces; no rama / tokio)" style="swimlane;startSize=24;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=12;horizontal=1" parent="1" vertex="1">
-                    <mxGeometry x="240" y="850" width="1700" height="370" as="geometry"/>
+                    <mxGeometry x="240" y="850" width="2000" height="370" as="geometry"/>
                 </mxCell>
 
                 <mxCell id="e-codecs-label" value="Codecs (L0–L5)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=1;fontColor=#4a3a52" parent="lane-e" vertex="1">
@@ -160,10 +160,10 @@
                 <mxCell id="e-openai" value="OpenAiCodec (L5)&#xa;/v1/responses · /v1/chat/completions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11" parent="lane-e" vertex="1">
                     <mxGeometry x="240" y="120" width="200" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="e-google" value="GoogleCodec (L5)&#xa;Gemini streamGenerateContent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11" parent="lane-e" vertex="1">
+                <mxCell id="e-google" value="Future vendor codec (L5)&#xa;e.g. Gemini — extension point, not built" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;dashed=1;fontStyle=2;fontSize=11" parent="lane-e" vertex="1">
                     <mxGeometry x="240" y="180" width="200" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="e-perplexity" value="PerplexityCodec (L5)&#xa;/chat/completions variant" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11" parent="lane-e" vertex="1">
+                <mxCell id="e-perplexity" value="Future vendor codec (L5)&#xa;e.g. Bedrock — extension point, not built" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;dashed=1;fontStyle=2;fontSize=11" parent="lane-e" vertex="1">
                     <mxGeometry x="240" y="240" width="200" height="50" as="geometry"/>
                 </mxCell>
                 <mxCell id="e-jsonchunk" value="JsonChunkCodec (L4)&#xa;non-streaming JSON body" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11" parent="lane-e" vertex="1">
@@ -238,6 +238,19 @@
                     <mxGeometry x="1280" y="290" width="220" height="60" as="geometry"/>
                 </mxCell>
 
+                <mxCell id="e-marking-label" value="Marking — turn/frame lineage (ADR 052)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=1;fontColor=#4a3a52" parent="lane-e" vertex="1">
+                    <mxGeometry x="1560" y="36" width="380" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-frame-registry" value="FrameTreeRegistry&#xa;DashMap&lt;SessionId, FrameTreeDetector&gt;&#xa;one detector per session — the only place&#xa;the data plane holds cross-request state&#xa;outside of Session/SessionStore." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontStyle=1;fontSize=11" parent="lane-e" vertex="1">
+                    <mxGeometry x="1560" y="60" width="380" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-frame-detector" value="FrameTreeDetector&#xa;on_request_open / on_response_close / on_round_trip&#xa;→ FrameMarks{role, frame_id, parent_frame_id, turn_id}&#xa;classifies CHAIN → SPAWN → ROOT from request-only&#xa;signals: x-claude-code-session-id/-agent-id,&#xa;x-session-id/-parent-session-id (OpenCode)." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11" parent="lane-e" vertex="1">
+                    <mxGeometry x="1560" y="160" width="380" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-marking-bespoke" value="Bespoke — NOT a Transform. Driven directly by&#xa;WireLogLayer (lane B), bypassing the Codec/Transform&#xa;chain in lane C/D, because it needs cross-request&#xa;state the per-event pipeline doesn't carry.&#xa;&#xa;Known divergence: a second, stateless extractor&#xa;(marking/record.rs, ADR 052 §5) exists but is not&#xa;wired into the live path — keeper decision deferred." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#d79b00;fontStyle=2;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6" parent="lane-e" vertex="1">
+                    <mxGeometry x="1560" y="280" width="380" height="80" as="geometry"/>
+                </mxCell>
+
                 <mxCell id="lane-f" value="F · Boundary file   (noodle-tap)" style="swimlane;startSize=24;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;horizontal=1" parent="1" vertex="1">
                     <mxGeometry x="240" y="1240" width="1700" height="130" as="geometry"/>
                 </mxCell>
@@ -285,7 +298,7 @@
                 <mxCell id="h-viewer" value="noodle-viewer&#xa;local debug UI&#xa;JsonlTailer → HubService → React UI&#xa;HTTP mode · SSE mode · OODA mode" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11" parent="lane-h" vertex="1">
                     <mxGeometry x="20" y="40" width="380" height="100" as="geometry"/>
                 </mxCell>
-                <mxCell id="h-collector" value="Telemetry shipper&#xa;OTel collector (filelog receiver) ·&#xa;the telemetry backend · vendor SDKs · file archive&#xa;classify content via noodle-domain;&#xa;correlate by turn_id / session_id." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11" parent="lane-h" vertex="1">
+                <mxCell id="h-collector" value="Telemetry shipper&#xa;noodle-embellish → SQLite → noodle-shipper, which&#xa;POSTs OTLP/HTTP directly (reqwest) to a collector —&#xa;no filelog receiver involved (ADR 057).&#xa;Trace = turn; correlates by turn_id / frame_id." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11" parent="lane-h" vertex="1">
                     <mxGeometry x="420" y="40" width="420" height="100" as="geometry"/>
                 </mxCell>
                 <mxCell id="h-analytics" value="Behaviour and usage analysis&#xa;cohort analysis · prompt-engineering studies&#xa;model-rollout comparisons" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11" parent="lane-h" vertex="1">
@@ -295,8 +308,8 @@
                     <mxGeometry x="1260" y="40" width="380" height="100" as="geometry"/>
                 </mxCell>
 
-                <mxCell id="future-panel" value="Extension points (planned)" style="swimlane;startSize=24;fillColor=#fff4e6;strokeColor=#d79b00;fontStyle=1;fontSize=12;horizontal=1" parent="1" vertex="1">
-                    <mxGeometry x="1960" y="80" width="400" height="1140" as="geometry"/>
+                <mxCell id="future-panel" value="Extension points (planned) — and one shipped item kept here for map continuity" style="swimlane;startSize=24;fillColor=#fff4e6;strokeColor=#d79b00;fontStyle=1;fontSize=12;horizontal=1" parent="1" vertex="1">
+                    <mxGeometry x="2260" y="80" width="400" height="1140" as="geometry"/>
                 </mxCell>
                 <mxCell id="fp-watchtower" value="Watchtower (control plane)&#xa;observes tap.jsonl;&#xa;signals per-session decisions through a&#xa;control port on noodle-core.&#xa;&#xa;Attachment points (no new interfaces needed):&#xa;• Header mutation slot at L3 (HeaderRewriter)&#xa;• Body-level model rewrite (ModelRewriter)&#xa;• Sensitive-content redaction (Redactor)&#xa;• Provider translation (asymmetric Codec pair)&#xa;• Cost feedback via audit events." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;dashed=1;fontStyle=2;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" parent="future-panel" vertex="1">
                     <mxGeometry x="20" y="40" width="360" height="260" as="geometry"/>
@@ -304,8 +317,8 @@
                 <mxCell id="fp-declarative" value="DeclarativeCodec&lt;Spec&gt;&#xa;reads vendor codec spec (JSON / YAML / TOML)&#xa;and implements Codec generically.&#xa;&#xa;Adding a new vendor = drop a spec file&#xa;in config/codecs/. No Rust recompile.&#xa;Story 032 (parked); ADR 019 §safe-subset.&#xa;&#xa;Same Spec grammar inverted for request-side&#xa;mutations: JSONPath-keyed Transform.&#xa;Per-vendor session-key extractor:&#xa;which header / body field identifies the session." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;dashed=1;fontStyle=2;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" parent="future-panel" vertex="1">
                     <mxGeometry x="20" y="320" width="360" height="260" as="geometry"/>
                 </mxCell>
-                <mxCell id="fp-embell" value="Embellishment / identity plane&#xa;Resolves device_id, project_id, model name&#xa;into person / team / org identity.&#xa;Lives outside noodle-core; consumes&#xa;ResolvedRecord from the side-effect sink.&#xa;ADR 022 · story 028 (deferred).&#xa;&#xa;Boundary out of noodle is file-only;&#xa;noodle never speaks OTLP. The OTel collector&#xa;reads via filelog and ships from there." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;dashed=1;fontStyle=2;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" parent="future-panel" vertex="1">
-                    <mxGeometry x="20" y="600" width="360" height="240" as="geometry"/>
+                <mxCell id="fp-embell" value="[SHIPPED, not planned — kept here for map&#xa;continuity, see docs/diagrams/022-data-and-&#xa;embellishment-planes.drawio for the real picture]&#xa;&#xa;Embellishment plane&#xa;crates/noodle-embellish, noodle-embellish-core,&#xa;noodle-shipper (this repo, separate processes).&#xa;Reads tap.jsonl / side_effects.jsonl → SQLite&#xa;(ai_telemetry v0.0.2) → OTLP GenAI trace spans,&#xa;POSTed directly by noodle-shipper (ADR 057).&#xa;Proven live in a rancher-desktop cluster.&#xa;&#xa;Deferred: story 028 identity resolution&#xa;(device_id → person/team/org); ADR 047&#xa;session-brain rungs 2–5 (semantic index,&#xa;recall API, cross-session persistence)." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fff0;strokeColor=#82b366;strokeWidth=2;fontStyle=0;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" parent="future-panel" vertex="1">
+                    <mxGeometry x="20" y="600" width="360" height="260" as="geometry"/>
                 </mxCell>
                 <mxCell id="fp-quic" value="QUIC / HTTP-3 MITM&#xa;DNS suppression + UDP/443 blackhole today;&#xa;true QUIC MITM is the steady-state target&#xa;(ADR 014).&#xa;&#xa;Linux entry transport (nftables TPROXY)&#xa;follows the same NETransparentProxyProvider&#xa;shape on a different driving adapter." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;dashed=1;fontStyle=2;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8" parent="future-panel" vertex="1">
                     <mxGeometry x="20" y="860" width="360" height="220" as="geometry"/>

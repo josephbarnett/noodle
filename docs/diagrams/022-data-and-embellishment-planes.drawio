@@ -1,174 +1,217 @@
 <mxfile host="65bd71144e">
-    <diagram id="planes-022" name="Two-process architecture (ADR 022)">
-        <mxGraphModel dx="2000" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1800" pageHeight="1000" math="0" shadow="0">
+    <diagram id="planes-022" name="Two-process architecture (ADR 022, corrected 2026-08-11)">
+        <mxGraphModel dx="2000" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1900" pageHeight="1000" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-                <mxCell id="title" value="ADR 022 — noodle (data plane) ⇒ side_effects.jsonl ⇒ OTel collector (embellishment plane) ⇒ downstream backends" style="text;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1" parent="1" vertex="1">
-                    <mxGeometry x="80" y="20" width="1640" height="28" as="geometry"/>
+                <mxCell id="title" value="ADR 022 / 057 — noodle data plane ⇒ tap.jsonl + side_effects.jsonl ⇒ embellishment plane (in-repo) ⇒ OTel collector ⇒ downstream backends" style="text;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1" parent="1" vertex="1">
+                    <mxGeometry x="60" y="18" width="1780" height="28" as="geometry"/>
                 </mxCell>
-                <mxCell id="subtitle" value="Boundary: a local file. noodle writes; the collector reads. OTLP appears only inside and beyond the collector." style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontStyle=2;fontColor=#555555" parent="1" vertex="1">
-                    <mxGeometry x="80" y="46" width="1640" height="20" as="geometry"/>
+                <mxCell id="subtitle" value="Two file boundaries: tap.jsonl + side_effects.jsonl (proxy ⇒ embellish) and SQLite (embellish ⇒ shipper). noodle-shipper POSTs OTLP itself — there is no collector-side filelog receiver tailing noodle's files." style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#555555" parent="1" vertex="1">
+                    <mxGeometry x="60" y="47" width="1780" height="16" as="geometry"/>
                 </mxCell>
-                <mxCell id="dp_group" value="noodle — data plane (this repo)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontStyle=1;fontSize=13;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
-                    <mxGeometry x="80" y="90" width="420" height="500" as="geometry"/>
+                <mxCell id="freshness" value="Freshness pass 2026-08-11 — the original diagram assumed the collector ingested noodle's output via a filelog receiver and stated &quot;noodle has no OTLP code&quot;. Corrected against crates/noodle-shipper/src/exporter.rs, which POSTs OTLP/HTTP directly via reqwest." style="text;html=1;align=center;verticalAlign=middle;fontSize=9;fontStyle=2;fontColor=#888888" parent="1" vertex="1">
+                    <mxGeometry x="60" y="64" width="1780" height="16" as="geometry"/>
                 </mxCell>
-                <mxCell id="dp_caption" value="protocol-pure: codecs, transforms, detectors, Resolver.&#xa;Emits typed facts. No network egress for attribution data." style="text;html=1;align=left;fontSize=10;fontStyle=2;fontColor=#3d5e3d" parent="1" vertex="1">
-                    <mxGeometry x="95" y="115" width="390" height="30" as="geometry"/>
+
+                <mxCell id="dp_group" value="noodle-proxy — data plane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontStyle=1;fontSize=13;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="60" y="100" width="380" height="600" as="geometry"/>
                 </mxCell>
-                <mxCell id="proxy" value="noodle-proxy&#xa;(rama service stack)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontStyle=1;align=center" parent="1" vertex="1">
-                    <mxGeometry x="120" y="160" width="340" height="50" as="geometry"/>
+                <mxCell id="dp_caption" value="Protocol-pure: codecs, transforms, detectors, marking.&#xa;Latency-sensitive. Never blocks on the embellishment plane." style="text;html=1;align=left;fontSize=10;fontStyle=2;fontColor=#3d5e3d" parent="1" vertex="1">
+                    <mxGeometry x="75" y="125" width="350" height="30" as="geometry"/>
                 </mxCell>
-                <mxCell id="engine" value="InspectionEngine&#xa;codecs · transforms · detectors · Resolver" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;align=center" parent="1" vertex="1">
-                    <mxGeometry x="120" y="230" width="340" height="60" as="geometry"/>
+                <mxCell id="proxy" value="noodle-proxy&#xa;(WireLogLayer, rama service stack)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontStyle=1;align=center" parent="1" vertex="1">
+                    <mxGeometry x="100" y="170" width="300" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="sink_port" value="SideEffectSink (port)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;align=center" parent="1" vertex="1">
-                    <mxGeometry x="120" y="310" width="340" height="32" as="geometry"/>
+                <mxCell id="engine" value="InspectionEngine&#xa;Codec / Transform / RequestDetector chain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;align=center" parent="1" vertex="1">
+                    <mxGeometry x="100" y="240" width="300" height="55" as="geometry"/>
                 </mxCell>
-                <mxCell id="adapters_lbl" value="[ Driven sink adapters ]" style="text;html=1;align=center;fontSize=10;fontStyle=2;fontColor=#555555" parent="1" vertex="1">
-                    <mxGeometry x="120" y="346" width="340" height="14" as="geometry"/>
+                <mxCell id="wiresink_port" value="WireSink port" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;align=center" parent="1" vertex="1">
+                    <mxGeometry x="100" y="310" width="300" height="30" as="geometry"/>
                 </mxCell>
-                <mxCell id="sink_jsonl" value="SideEffectsJsonlSink" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;align=center" parent="1" vertex="1">
-                    <mxGeometry x="120" y="368" width="160" height="50" as="geometry"/>
+                <mxCell id="tapjsonl_impl" value="TapJsonlLog (noodle-tap)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;fontSize=11" parent="1" vertex="1">
+                    <mxGeometry x="100" y="348" width="300" height="34" as="geometry"/>
                 </mxCell>
-                <mxCell id="sink_tracing" value="TracingSink" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center" parent="1" vertex="1">
-                    <mxGeometry x="300" y="368" width="160" height="50" as="geometry"/>
+                <mxCell id="sink_port" value="SideEffectSink port" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;align=center" parent="1" vertex="1">
+                    <mxGeometry x="100" y="398" width="300" height="30" as="geometry"/>
                 </mxCell>
-                <mxCell id="sink_memory" value="InMemorySink (tests)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9aa39a;align=center;fontSize=10;fontStyle=2;dashed=1" parent="1" vertex="1">
-                    <mxGeometry x="120" y="430" width="340" height="36" as="geometry"/>
+                <mxCell id="adapters_lbl" value="[ crates/noodle-sinks — driven adapters ]" style="text;html=1;align=center;fontSize=10;fontStyle=2;fontColor=#555555" parent="1" vertex="1">
+                    <mxGeometry x="100" y="432" width="300" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="sink_jsonl" value="SideEffectsJsonlSink" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;align=center;fontSize=10" parent="1" vertex="1">
+                    <mxGeometry x="100" y="452" width="145" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="sink_tracing" value="TracingSink · RoundTripSink" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;fontSize=10" parent="1" vertex="1">
+                    <mxGeometry x="255" y="452" width="145" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="sink_memory" value="MultiSideEffectSink (fan-out composite) · InMemorySink (tests)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9aa39a;align=center;fontSize=9;fontStyle=2;dashed=1" parent="1" vertex="1">
+                    <mxGeometry x="100" y="504" width="300" height="34" as="geometry"/>
                 </mxCell>
                 <mxCell id="facts_label" value="Emitted SideEffect variants:" style="text;html=1;align=left;fontSize=11;fontStyle=1;fontColor=#2d4a2d;spacingLeft=4" parent="1" vertex="1">
-                    <mxGeometry x="120" y="482" width="340" height="18" as="geometry"/>
+                    <mxGeometry x="100" y="552" width="300" height="16" as="geometry"/>
                 </mxCell>
-                <mxCell id="facts_list" value="Hint(category, value, confidence, source)&#xa;Artifact(name, value, layer, transform, flow_id, ts)&#xa;AuditEvent(kind, layer, transform, flow_id, ts, detail)&#xa;ResolvedRecord(session, flow_id, ts, resolved)" style="text;html=1;align=left;fontSize=10;fontStyle=0;fontColor=#3d5e3d;spacingLeft=4" parent="1" vertex="1">
-                    <mxGeometry x="120" y="500" width="340" height="80" as="geometry"/>
+                <mxCell id="facts_list" value="Hint(category, value, confidence, source)&#xa;Artifact(name, value, layer, transform, flow_id, ts)&#xa;AuditEvent(kind, layer, transform, flow_id, ts, detail)&#xa;Resolved(session, flow_id, ts, resolved) — Correlation stamped at drain" style="text;html=1;align=left;fontSize=9;fontStyle=0;fontColor=#3d5e3d;spacingLeft=4" parent="1" vertex="1">
+                    <mxGeometry x="100" y="568" width="300" height="70" as="geometry"/>
                 </mxCell>
-                <mxCell id="boundary_file" value="side_effects.jsonl&#xa;(local file)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;align=center" parent="1" vertex="1">
-                    <mxGeometry x="600" y="280" width="180" height="110" as="geometry"/>
+
+                <mxCell id="tapjsonl_cyl" value="tap.jsonl&#xa;(envelope + decoded layer + marks block)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;align=center;fontSize=11" parent="1" vertex="1">
+                    <mxGeometry x="490" y="340" width="190" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="boundary_caption" value="The boundary.&#xa;noodle writes; the collector reads.&#xa;Durable buffer between the two processes." style="text;html=1;align=center;fontSize=10;fontStyle=2;fontColor=#7a5d2e" parent="1" vertex="1">
-                    <mxGeometry x="585" y="396" width="210" height="50" as="geometry"/>
+                <mxCell id="sidefx_cyl" value="side_effects.jsonl&#xa;(Hint / Artifact / Audit / Resolved)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;align=center;fontSize=11" parent="1" vertex="1">
+                    <mxGeometry x="490" y="460" width="190" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="ep_group" value="embellishment plane — separate process (out of repo)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=13;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
-                    <mxGeometry x="900" y="90" width="540" height="640" as="geometry"/>
+                <mxCell id="boundary_caption" value="Two local files. noodle-proxy writes;&#xa;noodle-embellish reads. Both processes&#xa;live in this repo but stay separate&#xa;OS processes — the file is the only&#xa;interchange." style="text;html=1;align=center;fontSize=9;fontStyle=2;fontColor=#7a5d2e" parent="1" vertex="1">
+                    <mxGeometry x="480" y="555" width="210" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="ep_caption" value="OTel collector pipeline. Owns identity resolution, cost rate-card,&#xa;cross-source correlation, sampling, redaction." style="text;html=1;align=left;fontSize=10;fontStyle=2;fontColor=#5b4878" parent="1" vertex="1">
-                    <mxGeometry x="915" y="115" width="510" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="recv_grp" value="Receivers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontStyle=1;align=center;verticalAlign=top;spacingTop=6" parent="1" vertex="1">
-                    <mxGeometry x="920" y="160" width="500" height="160" as="geometry"/>
-                </mxCell>
-                <mxCell id="recv_filelog" value="filelog receiver&#xa;(noodle ingress)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;align=center;fontSize=11" parent="1" vertex="1">
-                    <mxGeometry x="940" y="200" width="200" height="56" as="geometry"/>
-                </mxCell>
-                <mxCell id="recv_otlp" value="otlp receiver&#xa;(other producers)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;align=center;fontSize=11" parent="1" vertex="1">
-                    <mxGeometry x="1180" y="200" width="220" height="56" as="geometry"/>
-                </mxCell>
-                <mxCell id="recv_caption" value="filelog tails noodle&#39;s file. otlp ingests OTLP-native producers (IDE plugins, chat-tool wrappers, org APIs)." style="text;html=1;align=center;fontSize=9;fontStyle=2;fontColor=#666666" parent="1" vertex="1">
-                    <mxGeometry x="920" y="270" width="500" height="20" as="geometry"/>
-                </mxCell>
-                <mxCell id="proc_grp" value="Processors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontStyle=1;align=center;verticalAlign=top;spacingTop=6" parent="1" vertex="1">
-                    <mxGeometry x="920" y="340" width="500" height="200" as="geometry"/>
-                </mxCell>
-                <mxCell id="proc_identity" value="identity-resolve&#xa;device_id → user / team / org&#xa;(IdP integration lives here)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=center;fontSize=10" parent="1" vertex="1">
-                    <mxGeometry x="940" y="375" width="220" height="60" as="geometry"/>
-                </mxCell>
-                <mxCell id="proc_cost" value="cost-rate-card&#xa;tokens × rate → dollars" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=center;fontSize=10" parent="1" vertex="1">
-                    <mxGeometry x="1180" y="375" width="220" height="60" as="geometry"/>
-                </mxCell>
-                <mxCell id="proc_correlate" value="correlate&#xa;join noodle + chat stdout + IDE telemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=center;fontSize=10" parent="1" vertex="1">
-                    <mxGeometry x="940" y="450" width="220" height="60" as="geometry"/>
-                </mxCell>
-                <mxCell id="proc_std" value="batch · attributes · filter · transform&#xa;(stock OTel processors)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;align=center;fontSize=10;fontStyle=2" parent="1" vertex="1">
-                    <mxGeometry x="1180" y="450" width="220" height="60" as="geometry"/>
-                </mxCell>
-                <mxCell id="exp_grp" value="Exporters" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontStyle=1;align=center;verticalAlign=top;spacingTop=6" parent="1" vertex="1">
-                    <mxGeometry x="920" y="560" width="500" height="160" as="geometry"/>
-                </mxCell>
-                <mxCell id="exp_telemetry-backend" value="otlphttp → the-telemetry-backend" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;align=center;fontSize=11" parent="1" vertex="1">
-                    <mxGeometry x="940" y="600" width="220" height="50" as="geometry"/>
-                </mxCell>
-                <mxCell id="exp_vendor" value="vendor SDKs&#xa;(Honeycomb, Datadog, ...)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;align=center;fontSize=10;fontStyle=2" parent="1" vertex="1">
-                    <mxGeometry x="1180" y="600" width="220" height="50" as="geometry"/>
-                </mxCell>
-                <mxCell id="exp_local" value="file / self-hosted store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;align=center;fontSize=10;fontStyle=2" parent="1" vertex="1">
-                    <mxGeometry x="940" y="665" width="460" height="40" as="geometry"/>
-                </mxCell>
+
                 <mxCell id="other_group" value="other signal producers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;fontStyle=2;fontSize=11;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;dashed=1" parent="1" vertex="1">
-                    <mxGeometry x="600" y="500" width="200" height="230" as="geometry"/>
+                    <mxGeometry x="490" y="650" width="200" height="230" as="geometry"/>
                 </mxCell>
                 <mxCell id="src_chat" value="chat tool stdout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=10" parent="1" vertex="1">
-                    <mxGeometry x="615" y="540" width="170" height="42" as="geometry"/>
+                    <mxGeometry x="505" y="690" width="170" height="42" as="geometry"/>
                 </mxCell>
                 <mxCell id="src_ide" value="IDE plugin (OTLP)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=10" parent="1" vertex="1">
-                    <mxGeometry x="615" y="595" width="170" height="42" as="geometry"/>
+                    <mxGeometry x="505" y="745" width="170" height="42" as="geometry"/>
                 </mxCell>
                 <mxCell id="src_orgapi" value="org-usage API (OTLP)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=10" parent="1" vertex="1">
-                    <mxGeometry x="615" y="650" width="170" height="42" as="geometry"/>
+                    <mxGeometry x="505" y="800" width="170" height="42" as="geometry"/>
                 </mxCell>
-                <mxCell id="src_future" value="future OTLP producers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=10;fontStyle=2" parent="1" vertex="1">
-                    <mxGeometry x="615" y="700" width="170" height="22" as="geometry"/>
+
+                <mxCell id="ep_group" value="embellishment plane — this repo, separate OS processes (noodle-embellish, noodle-embellish-core, noodle-shipper)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=12;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="740" y="100" width="540" height="500" as="geometry"/>
                 </mxCell>
+                <mxCell id="ep_caption" value="Batch, not streaming. Reads the two files at left, joins per&#xa;round-trip, writes SQLite, then ships OTLP itself." style="text;html=1;align=left;fontSize=10;fontStyle=2;fontColor=#5b4878" parent="1" vertex="1">
+                    <mxGeometry x="755" y="132" width="510" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="embcore_box" value="noodle-embellish-core&#xa;reader.rs · mapper.rs&#xa;context_weight.rs (ADR 056) · brain.rs (ADR 047)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;align=center;fontSize=11" parent="1" vertex="1">
+                    <mxGeometry x="760" y="175" width="500" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="emb_box" value="noodle-embellish (batch CLI)&#xa;embellisher.rs → SqliteWriter (ADD COLUMN migrations)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontStyle=1;align=center;fontSize=11" parent="1" vertex="1">
+                    <mxGeometry x="760" y="250" width="500" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="sqlite_cyl" value="SQLite&#xa;ai_telemetry v0.0.2" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;align=center;fontSize=11" parent="1" vertex="1">
+                    <mxGeometry x="960" y="325" width="100" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="sqlite_caption" value="resumable cursor.rs reads —&#xa;shipper restarts don't re-send" style="text;html=1;align=center;fontSize=8;fontStyle=2;fontColor=#7a5d2e" parent="1" vertex="1">
+                    <mxGeometry x="1070" y="330" width="180" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="shipper_box" value="noodle-shipper&#xa;cursor.rs → exporter.rs / otel_genai.rs&#xa;build_resource_spans_payload — trace=turn (ADR 057)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontStyle=1;align=center;fontSize=11" parent="1" vertex="1">
+                    <mxGeometry x="760" y="405" width="500" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="shipper_note" value="No in-workspace Rust dependency on noodle-embellish-core — the&#xa;SQLite schema is the boundary, not a shared type." style="text;html=1;align=center;fontSize=9;fontStyle=2;fontColor=#5b4878" parent="1" vertex="1">
+                    <mxGeometry x="760" y="470" width="500" height="30" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="collector_group" value="OTel Collector" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;fontStyle=1;fontSize=13;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8" parent="1" vertex="1">
+                    <mxGeometry x="1360" y="100" width="260" height="500" as="geometry"/>
+                </mxCell>
+                <mxCell id="collector_caption" value="Separate process — repository, name, and&#xa;deployment are ADR 044's concern, not this repo's." style="text;html=1;align=left;fontSize=9;fontStyle=2;fontColor=#444444" parent="1" vertex="1">
+                    <mxGeometry x="1375" y="132" width="230" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="recv_otlp" value="otlp receiver" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=11" parent="1" vertex="1">
+                    <mxGeometry x="1385" y="180" width="210" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc_std" value="processors&#xa;batch · attributes · filter · transform&#xa;(stock OTel processors)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=10;fontStyle=2" parent="1" vertex="1">
+                    <mxGeometry x="1385" y="290" width="210" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="exp_grp" value="exporters" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=10;fontStyle=2" parent="1" vertex="1">
+                    <mxGeometry x="1385" y="410" width="210" height="60" as="geometry"/>
+                </mxCell>
+
                 <mxCell id="cloud_group" value="downstream backends" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;fontStyle=2;fontSize=11;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;dashed=1" parent="1" vertex="1">
-                    <mxGeometry x="1490" y="90" width="200" height="640" as="geometry"/>
+                    <mxGeometry x="1660" y="100" width="180" height="500" as="geometry"/>
                 </mxCell>
-                <mxCell id="backend_target" value="the-telemetry-backend&#xa;(Joe&#39;s target)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=center;fontStyle=1;fontSize=11" parent="1" vertex="1">
-                    <mxGeometry x="1505" y="135" width="170" height="60" as="geometry"/>
+                <mxCell id="backend_tempo" value="Tempo&#xa;(dev harness — docker/otel-genai/)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=center;fontStyle=1;fontSize=10" parent="1" vertex="1">
+                    <mxGeometry x="1675" y="140" width="150" height="55" as="geometry"/>
                 </mxCell>
-                <mxCell id="obs" value="observability vendors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=10;fontStyle=2" parent="1" vertex="1">
-                    <mxGeometry x="1505" y="210" width="170" height="50" as="geometry"/>
+                <mxCell id="obs" value="observability vendors&#xa;(Honeycomb, Datadog, ...)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=10;fontStyle=2" parent="1" vertex="1">
+                    <mxGeometry x="1675" y="210" width="150" height="55" as="geometry"/>
                 </mxCell>
                 <mxCell id="self" value="self-hosted store&#xa;(Loki, Mimir, ...)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=center;fontSize=10;fontStyle=2" parent="1" vertex="1">
-                    <mxGeometry x="1505" y="275" width="170" height="50" as="geometry"/>
+                    <mxGeometry x="1675" y="280" width="150" height="55" as="geometry"/>
                 </mxCell>
-                <mxCell id="write_arrow" style="endArrow=classic;html=1;rounded=0;strokeWidth=4;strokeColor=#82b366;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="sink_jsonl" target="boundary_file" edge="1">
+
+                <mxCell id="write_arrow" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#82b366;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="tapjsonl_impl" target="tapjsonl_cyl" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="write_lbl" value="writes JSONL" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#3d5e3d" parent="1" vertex="1" connectable="0">
-                    <mxGeometry x="-0.05" relative="1" as="geometry">
-                        <mxPoint y="-12" as="offset"/>
+                <mxCell id="write_arrow2" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#82b366;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="sink_jsonl" target="sidefx_cyl" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="430" y="474"/>
+                            <mxPoint x="430" y="505"/>
+                        </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="tail_arrow" style="endArrow=classic;html=1;rounded=0;strokeWidth=4;strokeColor=#d6b656;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="boundary_file" target="recv_filelog" edge="1">
+                <mxCell id="read_arrow1" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#9673a6;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0" parent="1" source="tapjsonl_cyl" target="embcore_box" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="tail_lbl" value="filelog receiver&#xa;tails the file" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#7a5d2e" parent="1" vertex="1" connectable="0">
-                    <mxGeometry x="-0.05" relative="1" as="geometry">
-                        <mxPoint y="-16" as="offset"/>
+                <mxCell id="read_arrow2" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#9673a6;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.8;entryDx=0;entryDy=0" parent="1" source="sidefx_cyl" target="embcore_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="read_lbl" value="reads (batch)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=9;fontStyle=1;fontColor=#5b4878" parent="read_arrow1" connectable="0" vertex="1">
+                    <mxGeometry x="-0.1" relative="1" as="geometry">
+                        <mxPoint y="-10" as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="other_to_recv_chat" style="endArrow=classic;html=1;rounded=0;strokeWidth=1;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="src_chat" target="recv_otlp" edge="1">
+                <mxCell id="core_to_emb" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" parent="1" source="embcore_box" target="emb_box" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="emb_to_sqlite" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#d6b656;exitX=0.8;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" parent="1" source="emb_box" target="sqlite_cyl" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="sqlite_to_shipper" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#d6b656;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.8;entryY=0;entryDx=0;entryDy=0" parent="1" source="sqlite_cyl" target="shipper_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="shipper_to_collector" style="endArrow=classic;html=1;rounded=0;strokeWidth=4;strokeColor=#9673a6;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="shipper_box" target="recv_otlp" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="shipper_to_collector_lbl" value="POSTs OTLP/HTTP directly&#xa;(reqwest — noodle owns this call)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=9;fontStyle=1;fontColor=#5b4878" parent="shipper_to_collector" connectable="0" vertex="1">
+                    <mxGeometry x="-0.05" relative="1" as="geometry">
+                        <mxPoint y="-14" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="other_to_recv_chat" style="endArrow=classic;html=1;rounded=0;strokeWidth=1;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0" parent="1" source="src_chat" target="recv_otlp" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="720" y="711"/>
+                            <mxPoint x="1340" y="205"/>
+                        </Array>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="other_to_recv_ide" style="endArrow=classic;html=1;rounded=0;strokeWidth=1;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="src_ide" target="recv_otlp" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="720" y="766"/>
+                            <mxPoint x="1340" y="208"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="other_to_recv_org" style="endArrow=classic;html=1;rounded=0;strokeWidth=1;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0" parent="1" source="src_orgapi" target="recv_otlp" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="720" y="821"/>
+                            <mxPoint x="1340" y="211"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="recv_to_proc" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#666666;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" parent="1" source="recv_otlp" target="proc_std" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="other_to_recv_org" style="endArrow=classic;html=1;rounded=0;strokeWidth=1;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="src_orgapi" target="recv_otlp" edge="1">
+                <mxCell id="proc_to_exp" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#666666;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" parent="1" source="proc_std" target="exp_grp" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="otlp_in_lbl" value="OTLP" style="text;html=1;align=center;fontSize=9;fontStyle=2;fontColor=#666666" parent="1" vertex="1">
-                    <mxGeometry x="820" y="595" width="40" height="18" as="geometry"/>
-                </mxCell>
-                <mxCell id="recv_to_proc" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#9673a6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" parent="1" source="recv_grp" target="proc_grp" edge="1">
+                <mxCell id="exp_to_tempo" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#82b366;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="exp_grp" target="backend_tempo" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="proc_to_exp" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#9673a6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" parent="1" source="proc_grp" target="exp_grp" edge="1">
+                <mxCell id="exp_to_obs" style="endArrow=classic;html=1;rounded=0;strokeWidth=1;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="exp_grp" target="obs" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="exp_to_backend" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#82b366;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="exp_telemetry-backend" target="backend_target" edge="1">
+                <mxCell id="exp_to_self" style="endArrow=classic;html=1;rounded=0;strokeWidth=1;strokeColor=#666666;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="exp_grp" target="self" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="otlp_out_lbl" value="OTLP/HTTP" style="text;html=1;align=center;fontSize=9;fontStyle=2;fontColor=#3d5e3d" parent="1" vertex="1">
-                    <mxGeometry x="1408" y="591" width="80" height="18" as="geometry"/>
-                </mxCell>
-                <mxCell id="exp_to_obs" style="endArrow=classic;html=1;rounded=0;strokeWidth=1;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" parent="1" source="exp_vendor" target="obs" edge="1">
-                    <mxGeometry relative="1" as="geometry"/>
-                </mxCell>
-                <mxCell id="exp_to_self" style="endArrow=classic;html=1;rounded=0;strokeWidth=1;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0" parent="1" source="exp_local" target="self" edge="1">
-                    <mxGeometry relative="1" as="geometry"/>
-                </mxCell>
-                <mxCell id="legend" value="Legend.&#xa;Heavy green / amber arrows: the file boundary (noodle writes → file → collector tails). The single interchange between the two processes.&#xa;Thin grey: OTLP ingress from non-noodle producers. Green to the-telemetry-backend: OTLP egress after enrichment.&#xa;noodle has no OTLP code. The collector is a separate process; its repository, name, and deployment are out of this ADR." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#444444;spacingLeft=8;spacingTop=4" parent="1" vertex="1">
-                    <mxGeometry x="80" y="750" width="1610" height="80" as="geometry"/>
+
+                <mxCell id="legend" value="Legend.&#xa;Heavy green: writes to the two data-plane boundary files. Heavy purple: batch reads from those files, and noodle-shipper's own OTLP push to the collector's otlp receiver.&#xa;Heavy amber: SQLite read/write within the embellishment plane. Thin grey: OTLP ingress from non-noodle producers and stock collector pipeline stages.&#xa;Correction from the pre-2026-08-11 version of this diagram: noodle DOES speak OTLP (noodle-shipper, crates/noodle-shipper/src/exporter.rs) — there is no filelog receiver tailing noodle's files. The collector remains a separate process; its repository, name, and deployment are ADR 044's concern." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#444444;spacingLeft=8;spacingTop=4" parent="1" vertex="1">
+                    <mxGeometry x="60" y="895" width="1780" height="80" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
