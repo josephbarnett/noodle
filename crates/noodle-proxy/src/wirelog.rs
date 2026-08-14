@@ -648,13 +648,12 @@ where
                     cc.to_string(),
                     header("x-claude-code-agent-id").map(str::to_string),
                 )
-            } else if let Some(oc) = header("x-session-id") {
+            } else {
+                let oc = header("x-session-id")?;
                 match header("x-parent-session-id") {
                     Some(parent) => (parent.to_string(), Some(oc.to_string())),
                     None => (oc.to_string(), None),
                 }
-            } else {
-                return None;
             };
             let session_id = noodle_core::MarkingSessionId::new(session_str.as_str());
             let mut req_signals = frame_signals::request_signals(&req_bytes);
