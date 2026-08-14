@@ -210,6 +210,9 @@ export class EventStore {
    *  decoded usage pairs with its request body. Joined to the row by
    *  `event_id`, exactly like brain observations. */
   private contextWeightByEventId = new Map<string, ContextWeight>();
+  /** Snapshot ref for `useSyncExternalStore` — replaced per ingest so
+   *  React detects the change (mirrors `brainsSnapshot`). */
+  private contextWeightSnapshot: ReadonlyMap<string, ContextWeight> = new Map();
 
   // ─── S22: typed DecodedExchange feed (/api/decoded-exchanges) ─
   /** Map keyed by `exchange.event_id`. Holds the LATEST DecodedExchange
@@ -326,6 +329,7 @@ export class EventStore {
       case "context_weight": {
         // ADR 056 — join to the row by event_id, like brain.
         this.contextWeightByEventId.set(msg.event_id, msg.weight);
+        this.contextWeightSnapshot = new Map(this.contextWeightByEventId);
         break;
       }
     }
@@ -419,6 +423,11 @@ export class EventStore {
   /** ADR 056 — context weight for a `event_id`, if it has arrived. */
   getContextWeightFor(eventId: string): ContextWeight | undefined {
     return this.contextWeightByEventId.get(eventId);
+  }
+  /** ADR 056 — snapshot map of all context weights by `event_id`,
+   *  for views (OODA per-turn badge, session trend) that aggregate. */
+  getContextWeights(): ReadonlyMap<string, ContextWeight> {
+    return this.contextWeightSnapshot;
   }
   /** List of `event_id`s observed in a given `thread_id`, arrival
    *  order. Drives the per-thread timeline view. */

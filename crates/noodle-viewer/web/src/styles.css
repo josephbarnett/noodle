@@ -574,18 +574,18 @@ button.danger:hover:not(:disabled) { background: var(--error-soft); }
   padding: 1px 6px;
   letter-spacing: 0.02em;
 }
-.turn-divider-hint {
+/* ADR 056 — carried-context badge on the turn divider. */
+.turn-divider-ctx {
   flex-shrink: 0;
-  color: var(--text-faint);
-  font-size: 0.65rem;
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 400;
-}
-.turn-divider:first-child { margin-top: 0; }
-
-.turn-group.collapsed .turn-divider {
-  opacity: 0.7;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--ok, #4ade80);
+  background: var(--bg-elev, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  letter-spacing: 0.02em;
 }
 
 /* End-of-turn marker. Made deliberately quieter than the start

@@ -10,7 +10,7 @@ import { HeadersBlock } from "./HeadersBlock";
 import { classifyTool } from "../lib/toolBucket";
 import type { AgentRun, OodaSession } from "../store/derived/ooda";
 import type { ContentBlock } from "../store/derived/ooda";
-import type { ExchangePair } from "../types";
+import type { ContextWeight, ExchangePair } from "../types";
 import { flattenAgentRun, isLikelySystemReminder, type ThreadItem } from "../store/derived/thread";
 
 interface Props {
@@ -19,6 +19,9 @@ interface Props {
   run: AgentRun;
   /** Lookup of round-trip exchange pairs by event_id for header display. */
   pairsById: Map<string, ExchangePair>;
+  /** ADR 056 — per-round-trip context weight by event_id, for the
+   *  per-turn carried-context badge on the turn divider. */
+  contextWeights: ReadonlyMap<string, ContextWeight>;
   /** Switch to a different agent run inside the same session
    *  (e.g., from a parent's Agent tool_use → click → child run). */
   onJumpToRun?: (runIdx: number) => void;
@@ -27,7 +30,14 @@ interface Props {
   activeTurn?: number | null;
 }
 
-export function OodaThread({ session, run, pairsById, onJumpToRun, activeTurn }: Props) {
+export function OodaThread({
+  session,
+  run,
+  pairsById,
+  contextWeights,
+  onJumpToRun,
+  activeTurn,
+}: Props) {
   // Within this session, index sub-agent runs by the tool_use id that
   // spawned them so the parent's Agent tool block can show a link.
   const childRunByToolUseId = useMemo(() => {
@@ -38,6 +48,24 @@ export function OodaThread({ session, run, pairsById, onJumpToRun, activeTurn }:
     return m;
   }, [session.agentRuns]);
   const items = useMemo(() => flattenAgentRun(run), [run]);
+  // ADR 056 — carried-context aggregate per turn: sum cache_read +
+  // cache_creation across the turn's round trips, vs presented input.
+  const ctxByTurn = useMemo(() => {
+    const m = new Map<number, { carried: number; presented: number }>();
+    for (const t of run.turns) {
+      let carried = 0;
+      let presented = 0;
+      for (const rt of t.roundtrips) {
+        const cw = contextWeights.get(rt.exchangeId);
+        if (!cw) continue;
+        const c = cw.cache_read_tokens + cw.cache_creation_tokens;
+        carried += c;
+        presented += cw.input_tokens + c;
+      }
+      if (presented > 0) m.set(t.turnNum, { carried, presented });
+    }
+    return m;
+  }, [run.turns, contextWeights]);
   const allTurnNums = useMemo(
     () => run.turns.map((t) => t.turnNum),
     [run.turns],
@@ -177,6 +205,23 @@ export function OodaThread({ session, run, pairsById, onJumpToRun, activeTurn }:
                         turn:{it.turnId.slice(-6)}
                       </span>
                     )}
+                    {(() => {
+                      const cw = ctxByTurn.get(it.turnNum);
+                      if (!cw) return null;
+                      const pct = Math.round((cw.carried / cw.presented) * 100);
+                      const k =
+                        cw.carried >= 1000
+                          ? `${Math.round(cw.carried / 1000)}K`
+                          : `${cw.carried}`;
+                      return (
+                        <span
+                          className="turn-divider-ctx"
+                          title={`carried context this turn: ${cw.carried.toLocaleString()} tok (${pct}% of presented input)`}
+                        >
+                          ctx {k} · {pct}%
+                        </span>
+                      );
+                    })()}
                     <span className="turn-divider-rule" />
                     {!open && <span className="turn-divider-hint">(click to expand)</span>}
                   </button>

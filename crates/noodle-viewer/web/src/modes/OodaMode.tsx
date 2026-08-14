@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ExchangePair } from "../types";
+import type { ContextWeight, ExchangePair } from "../types";
 import { OodaThread } from "../components/OodaThread";
 import { SessionRail, type SessionSort } from "../components/SessionRail";
 import { buildSessions, type GetMarks, type ParseCache } from "../store/derived/ooda";
@@ -16,6 +16,9 @@ interface Props {
    *  the proxy — the UI renders the marks, it does not re-derive the
    *  tree from response bodies (ADR 052 §6). */
   getMarks?: GetMarks;
+  /** ADR 056 — per-round-trip context weight by event_id, threaded
+   *  through to the OODA thread for the per-turn carried-context badge. */
+  contextWeights: ReadonlyMap<string, ContextWeight>;
 }
 
 const SORT_STORAGE_KEY = "noodle-viewer:sessionSort";
@@ -26,7 +29,7 @@ function readSort(): SessionSort {
   return v === "oldest" ? "oldest" : "newest";
 }
 
-export function OodaMode({ pairs, parseCache, getMarks }: Props) {
+export function OodaMode({ pairs, parseCache, getMarks, contextWeights }: Props) {
   const pairsById = useMemo(() => {
     const m = new Map<string, ExchangePair>();
     for (const p of pairs) m.set(p.event_id, p);
@@ -151,6 +154,7 @@ export function OodaMode({ pairs, parseCache, getMarks }: Props) {
               session={active}
               run={activeRun}
               pairsById={pairsById}
+              contextWeights={contextWeights}
               onJumpToRun={(runIdx) => {
                 setActiveRunIdx(runIdx);
                 setActiveTurnNum(null);
