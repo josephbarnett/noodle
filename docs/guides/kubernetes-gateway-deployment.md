@@ -410,7 +410,69 @@ selectors.
 | `delivery_status='pending'` count grows without bound | Shipper isn't running, or collector is rejecting | Inspect shipper logs; ADR 042 §2 — non-2xx responses move rows to `retry`, then `poison` after `--max-retries` |
 | Pod restarts lose rollup rows | `emptyDir` is ephemeral by design | Upgrade to PVC per ADR 043 §2.6 if needed |
 
-## 14. Where to go next
+## 14. Local dev cluster (rancher-desktop) — what's actually running
+
+§§3–9 above are the ADR 043 *reference* manifests (registry push, `Dockerfile.proxy`/`Dockerfile.embellish`, namespace `noodle-gateway`). The local rancher-desktop cluster does **not** match that — no registry, different Dockerfiles, namespace `noodle`. This section is the real, verified-live commands. No `deploy.sh` wraps this; it's manual.
+
+**Build** — straight into containerd's `k8s.io` namespace, no push:
+
+```sh
+nerdctl --namespace k8s.io build -f Dockerfile.live    --target proxy     -t noodle-proxy:local-hier     .
+nerdctl --namespace k8s.io build -f Dockerfile.live    --target embellish -t noodle-embellish:local-hier .
+nerdctl --namespace k8s.io build -f Dockerfile.shipper                    -t noodle-shipper:local-hier   .
+nerdctl --namespace k8s.io build -f Dockerfile         --target viewer    -t noodle-viewer:local-hier    .
+```
+
+Split across three Dockerfiles because building all four together OOMs the Lima build VM (`rama` is heavy; `noodle-shipper` has no `rama` dep so it gets its own cheap build).
+
+**Roll out** — same tag on rebuild, so the running pod won't pick up new bytes on its own:
+
+```sh
+kubectl rollout restart deployment/noodle-gateway -n noodle
+kubectl rollout status  deployment/noodle-gateway -n noodle
+```
+
+Pod spec uses `imagePullPolicy: Never` on all four containers — that's what makes the local image visible without a registry.
+
+**Point `claude` at it:**
+
+```sh
+kubectl port-forward svc/noodle-gateway -n noodle 62100:62100 &
+
+kubectl get secret noodle-ca -n noodle -o jsonpath='{.data.ca\.pem}' \
+  | base64 -d > /tmp/noodle-gateway-ca.pem
+
+export HTTPS_PROXY=http://127.0.0.1:62100
+export NODE_EXTRA_CA_CERTS=/tmp/noodle-gateway-ca.pem
+export REQUESTS_CA_BUNDLE=/tmp/noodle-gateway-ca.pem
+export SSL_CERT_FILE=/tmp/noodle-gateway-ca.pem
+export CURL_CA_BUNDLE=/tmp/noodle-gateway-ca.pem
+
+claude
+```
+
+**Check it landed:**
+
+```sh
+kubectl port-forward svc/noodle-gateway -n noodle 9092:9092 &   # viewer, OODA mode at :9092
+
+kubectl logs -n noodle deploy/noodle-gateway -c shipper --tail=10   # "tick complete claimed=N delivered=N failed=0"
+
+kubectl exec -n noodle deploy/noodle-tempo -- \
+  wget -qO- 'http://localhost:3200/api/search?limit=10'   # turn traces, if the observability stack (§ below) is up
+```
+
+**Observability stack** (Tempo/Grafana/collector) is separate manifests, applied once and left running:
+
+```sh
+kubectl apply -f deploy/k8s/otlp-sink.yaml -f deploy/k8s/observability.yaml -n noodle
+```
+
+Grafana at `kubectl port-forward svc/noodle-grafana -n noodle 3000:3000` → Explore → Tempo → TraceQL `{ .gen_ai.operation.name = "invoke_agent" }`. Full walkthrough of what a trace should look like: [`../operations/otel-genai-harness.md`](../operations/otel-genai-harness.md#verified--live-in-cluster-2026-06-21).
+
+**Known drift:** the committed `deployment.yaml` still says `ghcr.io/josephbarnett/noodle-proxy:dev` + `imagePullPolicy: Always` — not what's live. Nobody's pushed the local-dev version back to git. `kubectl apply -f deploy/k8s/deployment.yaml` as committed will not reproduce what's running; use `kubectl edit`/`kubectl set image` or patch it, don't blind-apply.
+
+## 15. Where to go next
 
 - [`docs/adrs/043-...`](../adrs/043-kubernetes-gateway-deployment.md) — the design contract this runbook implements.
 - [`shipper-runbook.md`](shipper-runbook.md) — downstream OTLP delivery troubleshooting.
